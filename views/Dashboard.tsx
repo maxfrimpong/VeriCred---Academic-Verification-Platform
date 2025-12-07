@@ -1,0 +1,211 @@
+import React from 'react';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+} from 'recharts';
+import { 
+  Search, Filter, ExternalLink, MoreHorizontal, 
+  ArrowUpRight, Clock, CheckCircle2, XCircle 
+} from 'lucide-react';
+import { VerificationRequest, VerificationStatus, ViewProps } from '../types';
+
+interface DashboardProps extends ViewProps {
+  requests: VerificationRequest[];
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ requests, navigate }) => {
+  // Calculated stats
+  const total = requests.length;
+  const verified = requests.filter(r => r.status === VerificationStatus.Verified).length;
+  const pending = requests.filter(r => 
+    r.status === VerificationStatus.Pending || 
+    r.status === VerificationStatus.Processing ||
+    r.status === VerificationStatus.ReviewRequired
+  ).length;
+
+  const chartData = [
+    { name: 'Mon', verifications: 4 },
+    { name: 'Tue', verifications: 7 },
+    { name: 'Wed', verifications: 5 },
+    { name: 'Thu', verifications: 12 },
+    { name: 'Fri', verifications: 9 },
+    { name: 'Sat', verifications: 3 },
+    { name: 'Sun', verifications: 2 },
+  ];
+
+  const getStatusBadge = (status: VerificationStatus) => {
+    switch (status) {
+      case VerificationStatus.Verified:
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><CheckCircle2 className="w-3 h-3 mr-1"/> Verified</span>;
+      case VerificationStatus.Processing:
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"><Clock className="w-3 h-3 mr-1 animate-spin"/> Processing</span>;
+      case VerificationStatus.Pending:
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"><Clock className="w-3 h-3 mr-1"/> Pending</span>;
+      case VerificationStatus.ReviewRequired:
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Review</span>;
+      case VerificationStatus.Rejected:
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><XCircle className="w-3 h-3 mr-1"/> Rejected</span>;
+      default:
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Draft</span>;
+    }
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
+          <p className="text-slate-500 mt-2">Overview of your verification requests and activities.</p>
+        </div>
+        <button 
+          onClick={() => navigate('new-request')}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-lg shadow-indigo-200 transition-all flex items-center gap-2"
+        >
+          <ArrowUpRight className="w-4 h-4" />
+          New Verification
+        </button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-medium text-slate-500">Total Requests</p>
+              <h3 className="text-3xl font-bold text-slate-900 mt-2">{total}</h3>
+            </div>
+            <div className="p-3 bg-indigo-50 rounded-xl">
+              <ExternalLink className="w-6 h-6 text-indigo-600" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center text-sm text-green-600">
+            <ArrowUpRight className="w-4 h-4 mr-1" />
+            <span className="font-medium">+12%</span>
+            <span className="text-slate-400 ml-1">from last month</span>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-medium text-slate-500">Pending Actions</p>
+              <h3 className="text-3xl font-bold text-slate-900 mt-2">{pending}</h3>
+            </div>
+            <div className="p-3 bg-amber-50 rounded-xl">
+              <Clock className="w-6 h-6 text-amber-600" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center text-sm text-slate-500">
+            <span>Requires attention</span>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-medium text-slate-500">Verified Candidates</p>
+              <h3 className="text-3xl font-bold text-slate-900 mt-2">{verified}</h3>
+            </div>
+            <div className="p-3 bg-green-50 rounded-xl">
+              <CheckCircle2 className="w-6 h-6 text-green-600" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center text-sm text-green-600">
+            <span className="font-medium">98.5%</span>
+            <span className="text-slate-400 ml-1">accuracy rate</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Table */}
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+          <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+            <h2 className="text-lg font-bold text-slate-900">Recent Requests</h2>
+            <div className="flex gap-2">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                <input 
+                  type="text" 
+                  placeholder="Search..." 
+                  className="pl-9 pr-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-48"
+                />
+              </div>
+              <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg">
+                <Filter className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto flex-1">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-slate-500 font-medium">
+                <tr>
+                  <th className="px-6 py-4">Candidate</th>
+                  <th className="px-6 py-4">Institution</th>
+                  <th className="px-6 py-4">Degree</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Submitted</th>
+                  <th className="px-6 py-4"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {requests.map((request) => (
+                  <tr 
+                    key={request.id} 
+                    className="hover:bg-slate-50 transition-colors cursor-pointer group"
+                    onClick={() => navigate('request-detail', request.id)}
+                  >
+                    <td className="px-6 py-4 font-medium text-slate-900">{request.candidateName}</td>
+                    <td className="px-6 py-4 text-slate-600">{request.institution}</td>
+                    <td className="px-6 py-4 text-slate-600">{request.degree}</td>
+                    <td className="px-6 py-4">{getStatusBadge(request.status)}</td>
+                    <td className="px-6 py-4 text-slate-500">{new Date(request.submissionDate).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 text-right">
+                      <MoreHorizontal className="w-5 h-5 text-slate-300 group-hover:text-slate-600" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Chart */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+          <h2 className="text-lg font-bold text-slate-900 mb-6">Activity Volume</h2>
+          <div className="flex-1 min-h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fill: '#64748b', fontSize: 12}} 
+                  dy={10}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fill: '#64748b', fontSize: 12}} 
+                />
+                <Tooltip 
+                  cursor={{fill: '#f8fafc'}}
+                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                />
+                <Bar 
+                  dataKey="verifications" 
+                  fill="#6366f1" 
+                  radius={[4, 4, 0, 0]} 
+                  barSize={32}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;
