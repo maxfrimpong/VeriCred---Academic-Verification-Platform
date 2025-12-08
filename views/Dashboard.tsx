@@ -4,7 +4,7 @@ import {
 } from 'recharts';
 import { 
   Search, Filter, ExternalLink, MoreHorizontal, 
-  ArrowUpRight, Clock, CheckCircle2, XCircle 
+  ArrowUpRight, Clock, CheckCircle2, XCircle, Building2 
 } from 'lucide-react';
 import { VerificationRequest, VerificationStatus, ViewProps } from '../types';
 
@@ -12,7 +12,7 @@ interface DashboardProps extends ViewProps {
   requests: VerificationRequest[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ requests, navigate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ requests, navigate, user }) => {
   // Calculated stats
   const total = requests.length;
   const verified = requests.filter(r => r.status === VerificationStatus.Verified).length;
@@ -21,6 +21,8 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate }) => {
     r.status === VerificationStatus.Processing ||
     r.status === VerificationStatus.ReviewRequired
   ).length;
+
+  const isAdmin = user?.role === 'ADMIN';
 
   const chartData = [
     { name: 'Mon', verifications: 4 },
@@ -53,8 +55,14 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate }) => {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-500 mt-2">Overview of your verification requests and activities.</p>
+          <h1 className="text-3xl font-bold text-slate-900">
+            {isAdmin ? 'Admin Dashboard' : 'Client Dashboard'}
+          </h1>
+          <p className="text-slate-500 mt-2">
+            {isAdmin 
+              ? 'Overview of all verification activities across the platform.' 
+              : 'Overview of your verification requests and activities.'}
+          </p>
         </div>
         <button 
           onClick={() => navigate('new-request')}
@@ -70,7 +78,7 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate }) => {
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm font-medium text-slate-500">Total Requests</p>
+              <p className="text-sm font-medium text-slate-500">{isAdmin ? 'Global Requests' : 'Your Requests'}</p>
               <h3 className="text-3xl font-bold text-slate-900 mt-2">{total}</h3>
             </div>
             <div className="p-3 bg-indigo-50 rounded-xl">
@@ -141,10 +149,10 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate }) => {
               <thead className="bg-slate-50 text-slate-500 font-medium">
                 <tr>
                   <th className="px-6 py-4">Candidate</th>
+                  {isAdmin && <th className="px-6 py-4">Client</th>}
                   <th className="px-6 py-4">Institution</th>
-                  <th className="px-6 py-4">Degree</th>
                   <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Submitted</th>
+                  <th className="px-6 py-4">Date</th>
                   <th className="px-6 py-4"></th>
                 </tr>
               </thead>
@@ -156,8 +164,12 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate }) => {
                     onClick={() => navigate('request-detail', request.id)}
                   >
                     <td className="px-6 py-4 font-medium text-slate-900">{request.candidateName}</td>
+                    {isAdmin && (
+                      <td className="px-6 py-4 text-indigo-600 font-medium text-xs">
+                        {request.clientName}
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-slate-600">{request.institution}</td>
-                    <td className="px-6 py-4 text-slate-600">{request.degree}</td>
                     <td className="px-6 py-4">{getStatusBadge(request.status)}</td>
                     <td className="px-6 py-4 text-slate-500">{new Date(request.submissionDate).toLocaleDateString()}</td>
                     <td className="px-6 py-4 text-right">

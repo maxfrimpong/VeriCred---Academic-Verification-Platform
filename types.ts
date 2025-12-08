@@ -1,10 +1,23 @@
+export type Role = 'ADMIN' | 'CLIENT' | 'VERIFICATION_OFFICER';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  organization: string;
+  password?: string;
+}
+
 export enum VerificationStatus {
   Draft = 'DRAFT',
   Pending = 'PENDING',
   Processing = 'PROCESSING',
   Verified = 'VERIFIED',
   Rejected = 'REJECTED',
-  ReviewRequired = 'REVIEW_REQUIRED'
+  ReviewRequired = 'REVIEW_REQUIRED',
+  PendingClientAction = 'PENDING_CLIENT_ACTION',
+  InstitutionOutreach = 'INSTITUTION_OUTREACH'
 }
 
 export interface VerificationStep {
@@ -24,9 +37,16 @@ export interface VerificationRequest {
   status: VerificationStatus;
   submissionDate: string;
   lastUpdated: string;
-  documentUrl?: string; // In a real app this would be a cloud URL, here we use blob/base64
+  documentUrl?: string; 
+  clientId: string;
+  clientName: string;
   aiAnalysis?: AIAnalysisResult;
   timeline: VerificationStep[];
+  
+  // New fields for Officer Workflow
+  verificationOutcome?: 'SUCCESS' | 'FAILURE';
+  finalReportNote?: string;
+  manualVerificationRequested?: boolean;
 }
 
 export interface AIAnalysisResult {
@@ -39,9 +59,29 @@ export interface AIAnalysisResult {
   isTampered: boolean;
 }
 
-export type ViewState = 'dashboard' | 'new-request' | 'request-detail';
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  timestamp: string;
+  read: boolean;
+  relatedRequestId?: string;
+}
+
+export type ViewState = 'dashboard' | 'new-request' | 'request-detail' | 'settings' | 'clients' | 'audit-log';
 
 export interface ViewProps {
   navigate: (view: ViewState, id?: string) => void;
   currentId?: string;
+  user?: User;
+  onUpdateRequest?: (updatedRequest: VerificationRequest) => void;
+  // User Management Props
+  allUsers?: User[];
+  onAddUser?: (user: User) => void;
+  onEditUser?: (user: User) => void;
+  onDeleteUser?: (userId: string) => void;
+  // Data for views
+  requests?: VerificationRequest[];
 }

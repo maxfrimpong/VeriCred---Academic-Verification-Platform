@@ -1,10 +1,10 @@
 import React, { useState, useRef, ChangeEvent } from 'react';
 import { Upload, X, Loader2, Sparkles, AlertCircle, CheckCircle, FileText } from 'lucide-react';
-import { ViewProps, VerificationRequest, VerificationStatus } from '../types';
+import { ViewProps, VerificationRequest, VerificationStatus, AIAnalysisResult } from '../types';
 import { analyzeDocument } from '../services/geminiService';
 
 interface NewRequestProps extends ViewProps {
-  onSubmit: (req: Omit<VerificationRequest, 'id'>) => void;
+  onSubmit: (req: Omit<VerificationRequest, 'id' | 'clientId' | 'clientName'>) => void;
 }
 
 const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit }) => {
@@ -12,6 +12,7 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit }) => {
   const [preview, setPreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisDone, setAnalysisDone] = useState(false);
+  const [aiResult, setAiResult] = useState<AIAnalysisResult | undefined>(undefined);
   
   // Form State
   const [formData, setFormData] = useState({
@@ -43,6 +44,7 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit }) => {
         setIsAnalyzing(true);
         try {
           const result = await analyzeDocument(base64Data);
+          setAiResult(result);
           setFormData(prev => ({
             ...prev,
             candidateName: result.extractedName || prev.candidateName,
@@ -64,15 +66,33 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const newReq: Omit<VerificationRequest, 'id'> = {
+    
+    // Determine initial status based on AI Analysis
+    let initialStatus = VerificationStatus.Processing;
+    let step2Status: 'current' | 'error' | 'completed' = 'current';
+    let step2Desc = 'AI-powered initial document verification.';
+
+    if (aiResult) {
+        if (aiResult.confidenceScore < 80 || aiResult.isTampered) {
+            initialStatus = VerificationStatus.ReviewRequired;
+            step2Status = 'error';
+            step2Desc = 'AI Verification Warning: Low confidence or tampering detected. Manual review required.';
+        } else {
+            // High confidence
+            step2Desc = `AI Verification Passed (${aiResult.confidenceScore}%). Pending officer approval.`;
+        }
+    }
+
+    const newReq: Omit<VerificationRequest, 'id' | 'clientId' | 'clientName'> = {
       candidateName: formData.candidateName,
       institution: formData.institution,
       degree: formData.degree,
       graduationYear: formData.graduationYear,
-      status: VerificationStatus.Processing, // Start as processing directly for demo
+      status: initialStatus,
       submissionDate: new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
       documentUrl: preview || undefined,
+      aiAnalysis: aiResult,
       timeline: [
         {
           id: '1',
@@ -84,8 +104,8 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit }) => {
         {
           id: '2',
           label: 'Document Analysis',
-          description: 'AI-powered initial document verification.',
-          status: 'current',
+          description: step2Desc,
+          status: step2Status,
         },
         {
           id: '3',
@@ -134,6 +154,7 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit }) => {
                     setFile(null);
                     setPreview(null);
                     setAnalysisDone(false);
+                    setAiResult(undefined);
                     setFormData({ candidateName: '', institution: '', degree: '', graduationYear: '', notes: '' });
                   }}
                   className="absolute -top-2 -right-2 bg-white text-slate-500 hover:text-red-500 p-1 rounded-full shadow-md border border-slate-200"
@@ -147,9 +168,13 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit }) => {
                   </div>
                 )}
                 {analysisDone && (
-                  <div className="absolute bottom-2 left-2 right-2 bg-green-100/90 text-green-800 text-xs font-semibold py-1.5 px-3 rounded-md flex items-center justify-center gap-2 backdrop-blur-sm shadow-sm">
+                  <div className={`absolute bottom-2 left-2 right-2 text-xs font-semibold py-1.5 px-3 rounded-md flex items-center justify-center gap-2 backdrop-blur-sm shadow-sm ${
+                      (aiResult?.confidenceScore || 0) < 80 
+                      ? 'bg-amber-100/90 text-amber-800' 
+                      : 'bg-green-100/90 text-green-800'
+                  }`}>
                     <Sparkles className="w-3 h-3" />
-                    Data Extracted via Gemini
+                    {(aiResult?.confidenceScore || 0) < 80 ? 'Low Confidence' : 'AI Verified'}
                   </div>
                 )}
               </div>
@@ -182,7 +207,7 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit }) => {
               <div>
                 <h4 className="font-semibold text-blue-900 text-sm">AI-Powered Extraction</h4>
                 <p className="text-xs text-blue-700 mt-1 leading-relaxed">
-                  Our Gemini integration automatically scans uploaded documents to extract candidate details, saving you time and reducing errors.
+                  Our Gemini integration automatically scans uploaded documents to extract candidate details and verify authenticity.
                 </p>
               </div>
             </div>
