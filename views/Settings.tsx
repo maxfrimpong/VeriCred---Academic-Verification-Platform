@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ViewProps, User, Role, PaymentGateway } from '../types';
-import { User as UserIcon, Bell, Shield, Mail, Building, Save, Users, Plus, Edit2, Trash2, X, Check, Lock, Smartphone, LogOut, CreditCard, Ban, Undo, CheckCircle } from 'lucide-react';
+import { User as UserIcon, Bell, Shield, Mail, Building, Save, Users, Plus, Edit2, Trash2, X, Check, Lock, Smartphone, LogOut, CreditCard, Ban, Undo, CheckCircle, Search } from 'lucide-react';
 
 const Settings: React.FC<ViewProps> = ({ 
     navigate, user, allUsers = [], onAddUser, onEditUser, onDeleteUser, onToggleUserStatus,
@@ -326,6 +326,17 @@ const Settings: React.FC<ViewProps> = ({
                             </button>
                         </div>
                         
+                        {allUsers.length === 0 ? (
+                           <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-slate-100">
+                                   <Search className="w-6 h-6 text-slate-400" />
+                                </div>
+                                <h3 className="text-sm font-semibold text-slate-900">No users found</h3>
+                                <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+                                   There are no other users registered in the system yet. Add a user to get started.
+                                </p>
+                           </div>
+                        ) : (
                         <div className="overflow-hidden border border-slate-200 rounded-xl">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
@@ -403,6 +414,7 @@ const Settings: React.FC<ViewProps> = ({
                                 </tbody>
                             </table>
                         </div>
+                        )}
                     </>
                 ) : (
                     <form onSubmit={handleSaveUser} className="space-y-4">

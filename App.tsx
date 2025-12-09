@@ -179,7 +179,13 @@ const App: React.FC = () => {
 
   const fetchSystemUsers = async () => {
       const { data, error } = await supabase.from('profiles').select('*');
-      if (data && !error) {
+      
+      if (error) {
+          console.error("Error fetching system users:", error);
+          return;
+      }
+      
+      if (data) {
           const mappedUsers = data.map(mapDbProfileToUser);
           setAllUsers(mappedUsers);
       }
