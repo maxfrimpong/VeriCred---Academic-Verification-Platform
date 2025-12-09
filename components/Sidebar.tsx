@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, FilePlus, ShieldCheck, Settings, LogOut, CheckCircle, Users, ScrollText, UserCircle } from 'lucide-react';
+import { LayoutDashboard, FilePlus, ShieldCheck, Settings, LogOut, CheckCircle, Users, ScrollText, UserCircle, CreditCard } from 'lucide-react';
 import { ViewState, User } from '../types';
 
 interface SidebarProps {
@@ -12,6 +12,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onSignOut, user }) => {
   const isAdmin = user?.role === 'ADMIN';
   const isOfficer = user?.role === 'VERIFICATION_OFFICER';
+  const isClient = user?.role === 'CLIENT';
 
   const getRoleLabel = () => {
     if (isAdmin) return 'Admin Portal';
@@ -80,6 +81,21 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onSignOut, u
       </nav>
 
       <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+        {isClient && user && (
+            <div className="bg-slate-800 rounded-lg p-3 mb-4 border border-slate-700">
+                <div className="flex items-center gap-2 mb-1 text-slate-400 text-xs font-semibold uppercase">
+                    <CreditCard className="w-3 h-3" /> Balance
+                </div>
+                <div className="text-lg font-bold text-white">
+                    {user.subscriptionPlan === 'ENTERPRISE' ? (
+                        <span className="text-green-400">Enterprise</span>
+                    ) : (
+                        <span>{user.credits} Credits</span>
+                    )}
+                </div>
+            </div>
+        )}
+
         {/* User Profile Mini */}
         {user && (
           <div className="flex items-center gap-3 mb-4 px-2">

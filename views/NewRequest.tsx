@@ -1,13 +1,14 @@
 import React, { useState, useRef, ChangeEvent } from 'react';
-import { Upload, X, Loader2, Sparkles, AlertCircle, CheckCircle, FileText } from 'lucide-react';
+import { Upload, X, Loader2, Sparkles, CheckCircle, AlertTriangle } from 'lucide-react';
 import { ViewProps, VerificationRequest, VerificationStatus, AIAnalysisResult } from '../types';
 import { analyzeDocument } from '../services/geminiService';
+import Pricing from './Pricing';
 
 interface NewRequestProps extends ViewProps {
   onSubmit: (req: Omit<VerificationRequest, 'id' | 'clientId' | 'clientName'>) => void;
 }
 
-const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit }) => {
+const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, paymentConfig, onTopUp }) => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -24,6 +25,45 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit }) => {
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Check Credits Logic
+  const hasEnterpriseAccess = user?.subscriptionPlan === 'ENTERPRISE' && 
+    user.subscriptionExpiry && 
+    new Date(user.subscriptionExpiry) > new Date();
+
+  const hasCredits = (user?.credits || 0) > 0;
+  const canSubmit = hasEnterpriseAccess || hasCredits;
+
+  // Render Pricing if no credits
+  if (!canSubmit && user?.role === 'CLIENT' && paymentConfig && onTopUp) {
+    return (
+        <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in">
+             <div>
+                <button 
+                onClick={() => navigate('dashboard')}
+                className="text-slate-500 hover:text-slate-900 mb-4 text-sm font-medium flex items-center gap-1"
+                >
+                ← Back to Dashboard
+                </button>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-4 mb-8">
+                    <div className="p-2 bg-amber-100 rounded-full">
+                        <AlertTriangle className="w-6 h-6 text-amber-600" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-amber-900">Insufficient Credits</h3>
+                        <p className="text-amber-700 text-sm">You need to purchase a verification package to submit new requests.</p>
+                    </div>
+                </div>
+                
+                <Pricing 
+                    onPurchase={onTopUp} 
+                    paymentConfig={paymentConfig}
+                    currentPlan={user.subscriptionPlan}
+                />
+            </div>
+        </div>
+    );
+  }
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -134,8 +174,16 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit }) => {
         >
           ← Back to Dashboard
         </button>
-        <h1 className="text-3xl font-bold text-slate-900">New Verification Request</h1>
-        <p className="text-slate-500 mt-2">Upload a document to auto-fill details or enter them manually.</p>
+        <div className="flex justify-between items-end">
+            <div>
+                <h1 className="text-3xl font-bold text-slate-900">New Verification Request</h1>
+                <p className="text-slate-500 mt-2">Upload a document to auto-fill details or enter them manually.</p>
+            </div>
+            {/* Credit Display */}
+            <div className="bg-indigo-50 px-4 py-2 rounded-lg text-indigo-700 text-sm font-medium border border-indigo-100">
+                {hasEnterpriseAccess ? 'Enterprise Plan Active' : `Credits Remaining: ${user?.credits}`}
+            </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -290,7 +338,7 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit }) => {
                 className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center gap-2"
               >
                 <CheckCircle className="w-4 h-4" />
-                Submit Request
+                Submit Request (Uses 1 Credit)
               </button>
             </div>
           </form>

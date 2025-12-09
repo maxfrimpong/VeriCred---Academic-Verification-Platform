@@ -7,6 +7,10 @@ export interface User {
   role: Role;
   organization: string;
   password?: string;
+  // Subscription fields
+  credits: number;
+  subscriptionPlan?: 'STANDARD' | 'CORPORATE_PLUS' | 'CORPORATE_PRO' | 'ENTERPRISE';
+  subscriptionExpiry?: string; // ISO Date for Enterprise
 }
 
 export enum VerificationStatus {
@@ -72,6 +76,26 @@ export interface Notification {
 
 export type ViewState = 'dashboard' | 'new-request' | 'request-detail' | 'settings' | 'clients' | 'audit-log';
 
+export type PaymentGateway = 'STRIPE' | 'PAYSTACK' | 'PAYPAL';
+
+export interface PaymentConfig {
+  activeGateway: PaymentGateway;
+  keys: {
+    stripe: { publishable: string; secret: string };
+    paystack: { publicKey: string; secret: string };
+    paypal: { clientId: string; secret: string };
+  };
+}
+
+export interface PackageDef {
+  id: string;
+  name: string;
+  price: number;
+  credits: number | 'UNLIMITED';
+  durationMonths?: number;
+  description: string;
+}
+
 export interface ViewProps {
   navigate: (view: ViewState, id?: string) => void;
   currentId?: string;
@@ -84,4 +108,11 @@ export interface ViewProps {
   onDeleteUser?: (userId: string) => void;
   // Data for views
   requests?: VerificationRequest[];
+  // Payment Props
+  paymentConfig?: PaymentConfig;
+  onUpdatePaymentConfig?: (config: PaymentConfig) => void;
+  onTopUp?: (pkg: PackageDef) => void;
+  // System Config
+  showDemoCredentials?: boolean;
+  onToggleDemoCredentials?: (show: boolean) => void;
 }

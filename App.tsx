@@ -7,10 +7,12 @@ import Settings from './views/Settings';
 import Clients from './views/Clients';
 import AuditLog from './views/AuditLog';
 import Login from './views/Login';
-import { ViewState, VerificationRequest, VerificationStatus, User, Notification } from './types';
-import { Bell, X, Check, Info, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
+import { ViewState, VerificationRequest, VerificationStatus, User, Notification, PaymentConfig, PackageDef, Role } from './types';
+import { Bell, X, CheckCircle, AlertTriangle, ExternalLink } from 'lucide-react';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './services/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
 
-// Mock Initial Data with Client Ownership
+// Mock Initial Data - Used as fallback data for the dashboard if DB is empty
 const INITIAL_REQUESTS: VerificationRequest[] = [
   {
     id: 'REQ-2024-001',
@@ -57,71 +59,140 @@ const INITIAL_REQUESTS: VerificationRequest[] = [
         { id: '4', label: 'Final Verification', description: 'Pending.', status: 'upcoming' }
     ]
   },
-  {
-    id: 'REQ-2024-002',
-    candidateName: 'Michael Chen',
-    institution: 'Georgia Institute of Technology',
-    degree: 'M.S. Cybersecurity',
-    graduationYear: '2022',
-    status: VerificationStatus.Processing,
-    submissionDate: '2024-05-20T09:15:00Z',
-    lastUpdated: '2024-05-20T09:20:00Z',
-    clientId: 'client-2',
-    clientName: 'Acme Corp',
-    timeline: [
-        { id: '1', label: 'Request Submitted', description: 'Request received.', status: 'completed', date: 'May 20, 2024' },
-        { id: '2', label: 'Document Analysis', description: 'AI analysis in progress...', status: 'current' },
-        { id: '3', label: 'Institution Outreach', description: 'Pending analysis completion.', status: 'upcoming' },
-        { id: '4', label: 'Final Verification', description: 'Pending.', status: 'upcoming' }
-    ]
-  },
 ];
 
-const INITIAL_USERS: User[] = [
-  {
-    id: 'admin-1',
-    name: 'Sarah Connor',
-    email: 'admin@vericred.com',
-    role: 'ADMIN',
-    organization: 'VeriCred HQ',
-    password: 'admin'
-  },
-  {
-    id: 'client-1',
-    name: 'Alex Morgan',
-    email: 'alex@techglobal.com',
-    role: 'CLIENT',
-    organization: 'TechGlobal Inc.',
-    password: 'client'
-  },
-  {
-    id: 'officer-1',
-    name: 'James Gordon',
-    email: 'officer@vericred.com',
-    role: 'VERIFICATION_OFFICER',
-    organization: 'VeriCred Operations',
-    password: 'officer'
-  },
-  {
-    id: 'client-2',
-    name: 'David Liu',
-    email: 'david@acme.com',
-    role: 'CLIENT',
-    organization: 'Acme Corp',
-    password: 'client'
-  }
-];
+const INITIAL_PAYMENT_CONFIG: PaymentConfig = {
+    activeGateway: 'PAYSTACK',
+    keys: {
+        stripe: { publishable: '', secret: '' },
+        paystack: { publicKey: '', secret: '' },
+        paypal: { clientId: '', secret: '' }
+    }
+};
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [currentRequestId, setCurrentRequestId] = useState<string | undefined>();
   const [requests, setRequests] = useState<VerificationRequest[]>(INITIAL_REQUESTS);
-  const [allUsers, setAllUsers] = useState<User[]>(INITIAL_USERS);
+  const [allUsers, setAllUsers] = useState<User[]>([]); 
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>(INITIAL_PAYMENT_CONFIG);
+  
+  // Initialize with localStorage persistence
+  const [showDemoCredentials, setShowDemoCredentials] = useState(() => {
+    try {
+        const saved = localStorage.getItem('vericred_demo_mode');
+        return saved !== null ? JSON.parse(saved) : true;
+    } catch (e) {
+        return true;
+    }
+  });
   
   // Notification State
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  // SUPABASE AUTH INTEGRATION
+  useEffect(() => {
+    // Check active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchUserProfile(session.user.id);
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        fetchUserProfile(session.user.id);
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Helper to map DB profile to App User
+  const mapDbProfileToUser = (p: any): User => ({
+    id: p.id,
+    email: p.email,
+    name: p.name,
+    organization: p.organization,
+    role: p.role as Role,
+    credits: p.credits,
+    subscriptionPlan: p.subscription_plan,
+    subscriptionExpiry: p.subscription_expiry
+  });
+
+  // Fetch all users if Admin + Realtime Subscription
+  useEffect(() => {
+      if (currentUser?.role === 'ADMIN') {
+          fetchSystemUsers();
+
+          const channel = supabase.channel('realtime-profiles')
+              .on(
+                  'postgres_changes',
+                  { event: '*', schema: 'public', table: 'profiles' },
+                  (payload) => {
+                      if (payload.eventType === 'INSERT') {
+                          setAllUsers((prev) => [...prev, mapDbProfileToUser(payload.new)]);
+                      } else if (payload.eventType === 'UPDATE') {
+                          setAllUsers((prev) => prev.map((u) => u.id === payload.new.id ? mapDbProfileToUser(payload.new) : u));
+                      } else if (payload.eventType === 'DELETE') {
+                          setAllUsers((prev) => prev.filter((u) => u.id !== payload.old.id));
+                      }
+                  }
+              )
+              .subscribe();
+
+          return () => {
+              supabase.removeChannel(channel);
+          };
+      }
+  }, [currentUser?.role]);
+
+  const fetchUserProfile = async (userId: string) => {
+    // Fetch from profiles table for most up-to-date data
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+    
+    if (data && !error) {
+        setCurrentUser(mapDbProfileToUser(data));
+    } else {
+        // Fallback to auth metadata if profile doesn't exist yet (race condition)
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) mapSessionUser(user);
+    }
+  };
+
+  const fetchSystemUsers = async () => {
+      const { data, error } = await supabase.from('profiles').select('*');
+      if (data && !error) {
+          const mappedUsers = data.map(mapDbProfileToUser);
+          setAllUsers(mappedUsers);
+      }
+  };
+
+  const mapSessionUser = (supabaseUser: any) => {
+    // Map Supabase User Metadata to App User Type
+    const metadata = supabaseUser.user_metadata || {};
+    const mappedUser: User = {
+      id: supabaseUser.id,
+      email: supabaseUser.email || '',
+      name: metadata.name || 'Supabase User',
+      organization: metadata.organization || 'Organization',
+      role: (metadata.role as Role) || 'CLIENT',
+      credits: metadata.credits || 0,
+      subscriptionPlan: metadata.subscriptionPlan,
+      subscriptionExpiry: metadata.subscriptionExpiry
+    };
+    setCurrentUser(mappedUser);
+  };
 
   const navigate = (view: ViewState, id?: string) => {
     setCurrentView(view);
@@ -130,9 +201,45 @@ const App: React.FC = () => {
     window.scrollTo(0,0);
   };
 
-  const handleNewRequest = (req: Omit<VerificationRequest, 'id' | 'clientId' | 'clientName'>) => {
+  // Wrapper for persistent demo toggle
+  const handleToggleDemoCredentials = (show: boolean) => {
+    setShowDemoCredentials(show);
+    localStorage.setItem('vericred_demo_mode', JSON.stringify(show));
+  };
+
+  const handleNewRequest = async (req: Omit<VerificationRequest, 'id' | 'clientId' | 'clientName'>) => {
     if (!currentUser) return;
     
+    // Deduct Credit if not Enterprise (Check for Enterprise validity)
+    const isEnterprise = currentUser.subscriptionPlan === 'ENTERPRISE' && 
+        currentUser.subscriptionExpiry && 
+        new Date(currentUser.subscriptionExpiry) > new Date();
+
+    if (!isEnterprise) {
+        if (currentUser.credits <= 0) {
+            alert("Insufficient credits.");
+            return;
+        }
+        
+        // Update user credits in Supabase (Profiles table)
+        const newCredits = currentUser.credits - 1;
+        
+        const { error } = await supabase
+            .from('profiles')
+            .update({ credits: newCredits })
+            .eq('id', currentUser.id);
+
+        if (error) {
+            console.error("Failed to update credits", error);
+            alert("Transaction failed. Please try again.");
+            return;
+        }
+
+        // Optimistic UI Update
+        const updatedUser = { ...currentUser, credits: newCredits };
+        setCurrentUser(updatedUser);
+    }
+
     const newId = `REQ-2024-${String(requests.length + 1).padStart(3, '0')}`;
     const newRequest: VerificationRequest = { 
       ...req, 
@@ -142,104 +249,185 @@ const App: React.FC = () => {
     };
     setRequests([newRequest, ...requests]);
 
-    // Notify Officers/Admins
-    const officers = allUsers.filter(u => u.role === 'ADMIN' || u.role === 'VERIFICATION_OFFICER');
-    const newNotifs: Notification[] = officers.map(o => ({
-        id: `n-${Date.now()}-${o.id}`,
-        userId: o.id,
-        title: 'New Request Received',
-        message: `${currentUser.organization} submitted a verification request for ${req.candidateName}.`,
-        type: 'info',
+    // Notify (Local simulation of notification system)
+    const newNotif: Notification = {
+        id: `n-${Date.now()}`,
+        userId: currentUser.id, // Notify self for demo
+        title: 'Request Submitted',
+        message: `Verification request for ${req.candidateName} submitted successfully.`,
+        type: 'success',
         timestamp: new Date().toISOString(),
         read: false,
         relatedRequestId: newId
-    }));
-    setNotifications(prev => [...newNotifs, ...prev]);
+    };
+    setNotifications(prev => [newNotif, ...prev]);
   };
 
   const handleUpdateRequest = (updatedRequest: VerificationRequest) => {
-    // Check for status changes to trigger notifications
-    const oldReq = requests.find(r => r.id === updatedRequest.id);
-    
-    if (oldReq && oldReq.status !== updatedRequest.status) {
-        // Prepare notification for the client
-        const clientId = updatedRequest.clientId;
-        let title = "Verification Update";
-        let message = `Your request ${updatedRequest.id} status has been updated.`;
-        let type: 'info' | 'success' | 'warning' | 'error' = 'info';
-
-        switch (updatedRequest.status) {
-            case VerificationStatus.Verified:
-                title = "Verification Successful";
-                message = `Great news! The credentials for ${updatedRequest.candidateName} have been verified.`;
-                type = 'success';
-                break;
-            case VerificationStatus.Rejected:
-                title = "Verification Failed";
-                message = `The verification for ${updatedRequest.candidateName} was rejected. Please check the report.`;
-                type = 'error';
-                break;
-            case VerificationStatus.InstitutionOutreach:
-                title = "Institution Outreach";
-                message = `We are now contacting ${updatedRequest.institution} to verify records.`;
-                type = 'info';
-                break;
-            case VerificationStatus.PendingClientAction:
-                title = "Action Required";
-                message = `We need more information or a clearer document for ${updatedRequest.candidateName}.`;
-                type = 'warning';
-                break;
-            case VerificationStatus.Processing:
-                title = "Processing Started";
-                message = `Manual review for ${updatedRequest.candidateName} has begun.`;
-                type = 'info';
-                break;
-        }
-
-        const newNotif: Notification = {
-            id: `n-${Date.now()}`,
-            userId: clientId,
-            title,
-            message,
-            type,
-            timestamp: new Date().toISOString(),
-            read: false,
-            relatedRequestId: updatedRequest.id
-        };
-
-        setNotifications(prev => [newNotif, ...prev]);
-    }
-
     setRequests(prevRequests => 
       prevRequests.map(req => req.id === updatedRequest.id ? updatedRequest : req)
     );
   };
 
   // User Management Handlers
-  const handleAddUser = (user: User) => {
-    setAllUsers(prev => [...prev, user]);
-  };
+  const handleAddUser = async (user: User) => {
+    // We must creating a TEMPORARY client to sign up the new user.
+    if (!user.password) {
+        alert("Password is required to create a user.");
+        return;
+    }
 
-  const handleEditUser = (updatedUser: User) => {
-    setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-    if (currentUser?.id === updatedUser.id) {
-        setCurrentUser(updatedUser);
+    try {
+        const tempSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+                detectSessionInUrl: false
+            }
+        });
+
+        // This triggers the Database Trigger 'on_auth_user_created' which populates the 'profiles' table
+        const { data, error } = await tempSupabase.auth.signUp({
+            email: user.email,
+            password: user.password,
+            options: {
+                data: {
+                    name: user.name,
+                    organization: user.organization,
+                    role: user.role,
+                    credits: user.credits || 0,
+                    subscriptionPlan: user.subscriptionPlan,
+                    subscriptionExpiry: user.subscriptionExpiry
+                }
+            }
+        });
+
+        if (error) throw error;
+
+        if (data.user) {
+            const newNotif: Notification = {
+                id: `n-${Date.now()}`,
+                userId: currentUser?.id || '',
+                title: 'User Created',
+                message: `User ${user.name} (${user.role}) has been successfully created in the database.`,
+                type: 'success',
+                timestamp: new Date().toISOString(),
+                read: false
+            };
+            setNotifications(prev => [newNotif, ...prev]);
+        }
+
+    } catch (err: any) {
+        console.error("Failed to create user", err);
+        alert(`Error creating user: ${err.message}`);
     }
   };
 
-  const handleDeleteUser = (userId: string) => {
-    setAllUsers(prev => prev.filter(u => u.id !== userId));
+  const handleEditUser = async (updatedUser: User) => {
+    // Update the Profile Table directly
+    try {
+        const { error } = await supabase
+            .from('profiles')
+            .update({
+                name: updatedUser.name,
+                organization: updatedUser.organization,
+                role: updatedUser.role,
+                credits: updatedUser.credits,
+                subscription_plan: updatedUser.subscriptionPlan,
+                subscription_expiry: updatedUser.subscriptionExpiry
+            })
+            .eq('id', updatedUser.id);
+
+        if (error) throw error;
+
+        // If editing self
+        if (currentUser?.id === updatedUser.id) {
+            setCurrentUser(updatedUser);
+        }
+        // Note: Realtime subscription will handle the list update
+    } catch (err: any) {
+        console.error("Error updating user", err);
+        alert("Failed to update user.");
+    }
   };
 
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-    setCurrentView('dashboard');
+  const handleDeleteUser = async (userId: string) => {
+    // Note: This only deletes from Profiles table. 
+    // To delete from Auth, you need a backend function with Service Role.
+    try {
+        const { error } = await supabase.from('profiles').delete().eq('id', userId);
+        if (error) throw error;
+        // Realtime subscription handles list update
+    } catch (err: any) {
+        console.error("Delete failed", err);
+        alert("Failed to delete user profile.");
+    }
   };
 
-  const handleSignOut = () => {
-    setCurrentUser(null);
-    setCurrentView('dashboard');
-    setShowNotifications(false);
+  const handleLogin = (user: User) => {}; 
+  
+  const handleSignOut = async () => {
+    try {
+        await supabase.auth.signOut();
+    } catch (error) {
+        console.error("Error signing out:", error);
+    } finally {
+        setCurrentUser(null);
+        setCurrentView('dashboard');
+        setShowNotifications(false);
+    }
+  };
+
+  const handleTopUp = async (pkg: PackageDef) => {
+    if (!currentUser) return;
+
+    let updates: any = {};
+
+    if (pkg.id === 'ENTERPRISE') {
+        const nextYear = new Date();
+        nextYear.setFullYear(nextYear.getFullYear() + 1);
+        updates.subscription_plan = 'ENTERPRISE';
+        updates.subscription_expiry = nextYear.toISOString();
+    } else {
+        const currentCredits = currentUser.credits || 0;
+        const addCredits = typeof pkg.credits === 'number' ? pkg.credits : 0;
+        updates.credits = currentCredits + addCredits;
+        updates.subscription_plan = pkg.id;
+        updates.subscription_expiry = null;
+    }
+
+    // Update Profile
+    const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', currentUser.id);
+
+    if (error) {
+        console.error("TopUp Failed", error);
+        alert("Purchase failed. Please try again.");
+        return;
+    }
+
+    // Optimistic UI update
+    // Map db keys back to app keys
+    const appUpdates = {
+        subscriptionPlan: updates.subscription_plan,
+        subscriptionExpiry: updates.subscription_expiry,
+        credits: updates.credits
+    };
+    const updatedUser = { ...currentUser, ...appUpdates };
+    setCurrentUser(updatedUser);
+    
+    const newNotif: Notification = {
+        id: `n-${Date.now()}`,
+        userId: currentUser.id,
+        title: 'Purchase Successful',
+        message: `You have successfully purchased the ${pkg.name} package.`,
+        type: 'success',
+        timestamp: new Date().toISOString(),
+        read: false
+    };
+    setNotifications(prev => [newNotif, ...prev]);
   };
 
   // --- Notifications Logic ---
@@ -272,13 +460,21 @@ const App: React.FC = () => {
     if (currentUser.role === 'ADMIN' || currentUser.role === 'VERIFICATION_OFFICER') {
       return requests;
     }
-    return requests.filter(r => r.clientId === currentUser.id);
+    const myRequests = requests.filter(r => r.clientId === currentUser.id);
+    return myRequests;
   };
 
   const getActiveRequest = () => requests.find(r => r.id === currentRequestId);
 
   if (!currentUser) {
-    return <Login onLogin={handleLogin} availableUsers={allUsers} />;
+    return (
+        <Login 
+            onLogin={handleLogin} 
+            availableUsers={allUsers} // Not really used in Supabase mode
+            onRegister={handleAddUser} 
+            showDemoCredentials={showDemoCredentials}
+        />
+    );
   }
 
   const visibleRequests = getVisibleRequests();
@@ -377,7 +573,13 @@ const App: React.FC = () => {
           )}
           
           {currentView === 'new-request' && (
-            <NewRequest navigate={navigate} onSubmit={handleNewRequest} />
+            <NewRequest 
+                navigate={navigate} 
+                onSubmit={handleNewRequest} 
+                user={currentUser}
+                paymentConfig={paymentConfig}
+                onTopUp={handleTopUp}
+            />
           )}
 
           {currentView === 'request-detail' && (
@@ -415,6 +617,10 @@ const App: React.FC = () => {
                 onAddUser={handleAddUser}
                 onEditUser={handleEditUser}
                 onDeleteUser={handleDeleteUser}
+                paymentConfig={paymentConfig}
+                onUpdatePaymentConfig={setPaymentConfig}
+                showDemoCredentials={showDemoCredentials}
+                onToggleDemoCredentials={handleToggleDemoCredentials}
             />
           )}
         </div>
