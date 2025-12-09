@@ -123,7 +123,8 @@ const App: React.FC = () => {
     role: p.role as Role,
     credits: p.credits,
     subscriptionPlan: p.subscription_plan,
-    subscriptionExpiry: p.subscription_expiry
+    subscriptionExpiry: p.subscription_expiry,
+    status: p.status || 'active'
   });
 
   // Fetch all users if Admin + Realtime Subscription
@@ -162,6 +163,12 @@ const App: React.FC = () => {
         .single();
     
     if (data && !error) {
+        if (data.status === 'suspended') {
+            alert("Your account has been suspended. Please contact support.");
+            await supabase.auth.signOut();
+            setCurrentUser(null);
+            return;
+        }
         setCurrentUser(mapDbProfileToUser(data));
     } else {
         // Fallback to auth metadata if profile doesn't exist yet (race condition)
@@ -189,7 +196,8 @@ const App: React.FC = () => {
       role: (metadata.role as Role) || 'CLIENT',
       credits: metadata.credits || 0,
       subscriptionPlan: metadata.subscriptionPlan,
-      subscriptionExpiry: metadata.subscriptionExpiry
+      subscriptionExpiry: metadata.subscriptionExpiry,
+      status: 'active'
     };
     setCurrentUser(mappedUser);
   };
@@ -334,7 +342,8 @@ const App: React.FC = () => {
                 role: updatedUser.role,
                 credits: updatedUser.credits,
                 subscription_plan: updatedUser.subscriptionPlan,
-                subscription_expiry: updatedUser.subscriptionExpiry
+                subscription_expiry: updatedUser.subscriptionExpiry,
+                status: updatedUser.status
             })
             .eq('id', updatedUser.id);
 
@@ -344,11 +353,29 @@ const App: React.FC = () => {
         if (currentUser?.id === updatedUser.id) {
             setCurrentUser(updatedUser);
         }
-        // Note: Realtime subscription will handle the list update
     } catch (err: any) {
         console.error("Error updating user", err);
         alert("Failed to update user.");
     }
+  };
+
+  const handleToggleUserStatus = async (userId: string, currentStatus?: string) => {
+      const newStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
+      try {
+        const { error } = await supabase
+            .from('profiles')
+            .update({ status: newStatus })
+            .eq('id', userId);
+
+        if (error) throw error;
+        
+        // Optimistic update
+        setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
+        
+      } catch (err: any) {
+          console.error("Error updating status", err);
+          alert("Failed to change user status.");
+      }
   };
 
   const handleDeleteUser = async (userId: string) => {
@@ -617,6 +644,7 @@ const App: React.FC = () => {
                 onAddUser={handleAddUser}
                 onEditUser={handleEditUser}
                 onDeleteUser={handleDeleteUser}
+                onToggleUserStatus={handleToggleUserStatus}
                 paymentConfig={paymentConfig}
                 onUpdatePaymentConfig={setPaymentConfig}
                 showDemoCredentials={showDemoCredentials}

@@ -11,6 +11,7 @@ export interface User {
   credits: number;
   subscriptionPlan?: 'STANDARD' | 'CORPORATE_PLUS' | 'CORPORATE_PRO' | 'ENTERPRISE';
   subscriptionExpiry?: string; // ISO Date for Enterprise
+  status?: 'active' | 'suspended';
 }
 
 export enum VerificationStatus {
@@ -106,6 +107,7 @@ export interface ViewProps {
   onAddUser?: (user: User) => void;
   onEditUser?: (user: User) => void;
   onDeleteUser?: (userId: string) => void;
+  onToggleUserStatus?: (userId: string, currentStatus?: string) => void;
   // Data for views
   requests?: VerificationRequest[];
   // Payment Props

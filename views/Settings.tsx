@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { ViewProps, User, Role, PaymentGateway } from '../types';
-import { User as UserIcon, Bell, Shield, Mail, Building, Save, Users, Plus, Edit2, Trash2, X, Check, Lock, Smartphone, LogOut, CreditCard } from 'lucide-react';
+import { User as UserIcon, Bell, Shield, Mail, Building, Save, Users, Plus, Edit2, Trash2, X, Check, Lock, Smartphone, LogOut, CreditCard, Ban, Undo, CheckCircle } from 'lucide-react';
 
 const Settings: React.FC<ViewProps> = ({ 
-    navigate, user, allUsers = [], onAddUser, onEditUser, onDeleteUser, 
+    navigate, user, allUsers = [], onAddUser, onEditUser, onDeleteUser, onToggleUserStatus,
     paymentConfig, onUpdatePaymentConfig,
     showDemoCredentials, onToggleDemoCredentials 
 }) => {
@@ -38,7 +38,8 @@ const Settings: React.FC<ViewProps> = ({
             name: '',
             email: '',
             password: '',
-            credits: 0 // Default new user credits
+            credits: 0,
+            status: 'active'
         });
     }
     setIsEditingUser(true);
@@ -57,6 +58,7 @@ const Settings: React.FC<ViewProps> = ({
             credits: 0,
             ...editingUser as User,
             id: `user-${Date.now()}`,
+            status: editingUser.status || 'active'
         };
         if (onAddUser) onAddUser(newUser);
     }
@@ -330,6 +332,7 @@ const Settings: React.FC<ViewProps> = ({
                                     <tr>
                                         <th className="px-4 py-3">Name / Org</th>
                                         <th className="px-4 py-3">Role</th>
+                                        <th className="px-4 py-3">Status</th>
                                         <th className="px-4 py-3">Credits</th>
                                         <th className="px-4 py-3 text-right">Actions</th>
                                     </tr>
@@ -349,6 +352,12 @@ const Settings: React.FC<ViewProps> = ({
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3">
+                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium 
+                                                    ${u.status === 'suspended' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                                                    {u.status || 'active'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3">
                                                 {u.role === 'CLIENT' ? (
                                                     <span className="font-mono text-xs bg-slate-100 px-2 py-1 rounded">
                                                         {u.subscriptionPlan === 'ENTERPRISE' ? '∞' : u.credits}
@@ -356,12 +365,34 @@ const Settings: React.FC<ViewProps> = ({
                                                 ) : '-'}
                                             </td>
                                             <td className="px-4 py-3 text-right">
-                                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => handleStartEdit(u)} className="p-1 text-slate-400 hover:text-indigo-600">
+                                                <div className="flex justify-end gap-1 opacity-100 transition-opacity">
+                                                    <button 
+                                                        onClick={() => window.location.href=`mailto:${u.email}`}
+                                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                        title="Send Email"
+                                                    >
+                                                        <Mail className="w-4 h-4" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => onToggleUserStatus && onToggleUserStatus(u.id, u.status)}
+                                                        className={`p-1.5 rounded ${u.status === 'suspended' ? 'text-green-500 hover:bg-green-50' : 'text-amber-500 hover:bg-amber-50'}`}
+                                                        title={u.status === 'suspended' ? 'Activate User' : 'Suspend User'}
+                                                    >
+                                                        {u.status === 'suspended' ? <CheckCircle className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleStartEdit(u)} 
+                                                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+                                                        title="Edit User"
+                                                    >
                                                         <Edit2 className="w-4 h-4" />
                                                     </button>
                                                     {u.id !== user?.id && (
-                                                        <button onClick={() => handleDeleteClick(u.id)} className="p-1 text-slate-400 hover:text-red-600">
+                                                        <button 
+                                                            onClick={() => handleDeleteClick(u.id)} 
+                                                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                                            title="Delete User"
+                                                        >
                                                             <Trash2 className="w-4 h-4" />
                                                         </button>
                                                     )}
@@ -413,15 +444,28 @@ const Settings: React.FC<ViewProps> = ({
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                            <input 
-                                type="email" 
-                                value={editingUser.email || ''} 
-                                onChange={e => setEditingUser({...editingUser, email: e.target.value})}
-                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                required
-                            />
+                        <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                                <input 
+                                    type="email" 
+                                    value={editingUser.email || ''} 
+                                    onChange={e => setEditingUser({...editingUser, email: e.target.value})}
+                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                                <select 
+                                    value={editingUser.status || 'active'} 
+                                    onChange={e => setEditingUser({...editingUser, status: e.target.value as any})}
+                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="active">Active</option>
+                                    <option value="suspended">Suspended</option>
+                                </select>
+                            </div>
                         </div>
 
                         {!editingUser.id && (
