@@ -171,7 +171,7 @@ const App: React.FC = () => {
       const { data, error } = await supabase.from('profiles').select('*');
       
       if (error) {
-          console.error("Error fetching system users:", error);
+          console.error("Error fetching system users:", error.message || error);
           return;
       }
       
@@ -269,13 +269,13 @@ const App: React.FC = () => {
 
   // User Management Handlers
   const handleAddUser = async (user: User) => {
-    // We must creating a TEMPORARY client to sign up the new user.
     if (!user.password) {
         alert("Password is required to create a user.");
         return;
     }
 
     try {
+        // 1. Create user in Supabase Auth using a temporary client (so we don't log out the admin)
         const tempSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             auth: {
                 persistSession: false,
@@ -284,7 +284,6 @@ const App: React.FC = () => {
             }
         });
 
-        // This triggers the Database Trigger 'on_auth_user_created' which populates the 'profiles' table
         const { data, error } = await tempSupabase.auth.signUp({
             email: user.email,
             password: user.password,
@@ -302,12 +301,43 @@ const App: React.FC = () => {
 
         if (error) throw error;
 
+        // 2. Explicitly create the profile record. 
+        // Although the DB trigger should handle this, doing it explicitly ensures the user appears 
+        // in the list immediately without race conditions, and works even if the trigger fails.
         if (data.user) {
+            const profileData = {
+                id: data.user.id,
+                email: user.email,
+                name: user.name,
+                organization: user.organization,
+                role: user.role,
+                credits: user.credits || 0,
+                subscription_plan: user.subscriptionPlan,
+                subscription_expiry: user.subscriptionExpiry,
+                status: 'active'
+            };
+
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .upsert(profileData);
+
+            if (profileError) {
+                console.error("Profile creation warning:", profileError.message || profileError);
+                // We don't throw here because the user was created in Auth, so the trigger might catch it.
+            } else {
+                 // Update local state immediately if upsert was successful
+                 setAllUsers(prev => {
+                     // check if exists
+                     if (prev.find(u => u.id === data.user!.id)) return prev;
+                     return [...prev, { ...user, id: data.user!.id, status: 'active' }];
+                 });
+            }
+
             const newNotif: Notification = {
                 id: `n-${Date.now()}`,
                 userId: currentUser?.id || '',
                 title: 'User Created',
-                message: `User ${user.name} (${user.role}) has been successfully created in the database.`,
+                message: `User ${user.name} (${user.role}) has been successfully created.`,
                 type: 'success',
                 timestamp: new Date().toISOString(),
                 read: false
