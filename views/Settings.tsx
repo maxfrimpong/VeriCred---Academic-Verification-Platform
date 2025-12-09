@@ -4,8 +4,7 @@ import { User as UserIcon, Bell, Shield, Mail, Building, Save, Users, Plus, Edit
 
 const Settings: React.FC<ViewProps> = ({ 
     navigate, user, allUsers = [], onAddUser, onEditUser, onDeleteUser, onToggleUserStatus,
-    paymentConfig, onUpdatePaymentConfig,
-    showDemoCredentials, onToggleDemoCredentials 
+    paymentConfig, onUpdatePaymentConfig
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'notifications' | 'security' | 'payments'>('profile');
   const isAdmin = user?.role === 'ADMIN';
@@ -623,17 +622,6 @@ const Settings: React.FC<ViewProps> = ({
                         </button>
                     </div>
                 </form>
-
-                <div className="mt-8 pt-6 border-t border-slate-100">
-                    <h3 className="font-semibold text-slate-900 mb-4">Demo Configuration</h3>
-                    <div className="flex items-center justify-between bg-slate-50 p-4 rounded-lg">
-                        <div>
-                            <span className="font-medium text-slate-700 block">Show Demo Credentials</span>
-                            <span className="text-xs text-slate-500">Pre-fill login form for testing</span>
-                        </div>
-                        <Toggle checked={!!showDemoCredentials} onChange={() => onToggleDemoCredentials && onToggleDemoCredentials(!showDemoCredentials)} />
-                    </div>
-                </div>
               </div>
           )}
 

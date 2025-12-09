@@ -78,16 +78,6 @@ const App: React.FC = () => {
   const [allUsers, setAllUsers] = useState<User[]>([]); 
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>(INITIAL_PAYMENT_CONFIG);
   
-  // Initialize with localStorage persistence
-  const [showDemoCredentials, setShowDemoCredentials] = useState(() => {
-    try {
-        const saved = localStorage.getItem('vericred_demo_mode');
-        return saved !== null ? JSON.parse(saved) : true;
-    } catch (e) {
-        return true;
-    }
-  });
-  
   // Notification State
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -213,12 +203,6 @@ const App: React.FC = () => {
     if (id) setCurrentRequestId(id);
     setShowNotifications(false);
     window.scrollTo(0,0);
-  };
-
-  // Wrapper for persistent demo toggle
-  const handleToggleDemoCredentials = (show: boolean) => {
-    setShowDemoCredentials(show);
-    localStorage.setItem('vericred_demo_mode', JSON.stringify(show));
   };
 
   const handleNewRequest = async (req: Omit<VerificationRequest, 'id' | 'clientId' | 'clientName'>) => {
@@ -505,7 +489,6 @@ const App: React.FC = () => {
             onLogin={handleLogin} 
             availableUsers={allUsers} // Not really used in Supabase mode
             onRegister={handleAddUser} 
-            showDemoCredentials={showDemoCredentials}
         />
     );
   }
@@ -653,8 +636,6 @@ const App: React.FC = () => {
                 onToggleUserStatus={handleToggleUserStatus}
                 paymentConfig={paymentConfig}
                 onUpdatePaymentConfig={setPaymentConfig}
-                showDemoCredentials={showDemoCredentials}
-                onToggleDemoCredentials={handleToggleDemoCredentials}
             />
           )}
         </div>

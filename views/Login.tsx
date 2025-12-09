@@ -7,10 +7,9 @@ interface LoginProps {
   onLogin: (user: User) => void;
   availableUsers?: User[];
   onRegister: (user: User) => void;
-  showDemoCredentials?: boolean;
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin, showDemoCredentials = true }) => {
+const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -58,19 +57,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, showDemoCredentials = true }) =>
       console.error(err);
       setError(err.message || "Authentication failed");
       setLoading(false);
-    }
-  };
-
-  const fillCredentials = (roleType: Role) => {
-    if (roleType === 'ADMIN') {
-        setEmail('max.frimpong@vericred.com');
-        setPassword('IoU10074385?');
-    } else if (roleType === 'VERIFICATION_OFFICER') {
-        setEmail('officer@vericred.com');
-        setPassword('password123');
-    } else {
-        setEmail('client@techglobal.com');
-        setPassword('password123');
     }
   };
 
@@ -171,17 +157,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, showDemoCredentials = true }) =>
             </button>
           </form>
           
-          {showDemoCredentials && (
-             <div className="mt-6 pt-6 border-t border-slate-100">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 text-center">Quick Login (Demo)</p>
-                <div className="grid grid-cols-3 gap-2">
-                    <button onClick={() => fillCredentials('ADMIN')} className="text-xs bg-purple-50 text-purple-700 py-1 rounded hover:bg-purple-100 font-medium">Admin</button>
-                    <button onClick={() => fillCredentials('VERIFICATION_OFFICER')} className="text-xs bg-blue-50 text-blue-700 py-1 rounded hover:bg-blue-100 font-medium">Officer</button>
-                    <button onClick={() => fillCredentials('CLIENT')} className="text-xs bg-slate-100 text-slate-700 py-1 rounded hover:bg-slate-200 font-medium">Client</button>
-                </div>
-             </div>
-          )}
-
           <div className="mt-6 text-center">
               <button 
                 onClick={() => setIsRegistering(!isRegistering)}

@@ -114,7 +114,4 @@ export interface ViewProps {
   paymentConfig?: PaymentConfig;
   onUpdatePaymentConfig?: (config: PaymentConfig) => void;
   onTopUp?: (pkg: PackageDef) => void;
-  // System Config
-  showDemoCredentials?: boolean;
-  onToggleDemoCredentials?: (show: boolean) => void;
 }
