@@ -60,7 +60,7 @@ const RequestDetail: React.FC<RequestDetailProps> = ({ request, navigate, user, 
                 
                 // 3. Update Request
                 const updated = { ...request };
-                updated.documentUrl = objectUrl;
+                updated.documentUrl = base64String; // Store Base64 for persistence
                 updated.aiAnalysis = result;
                 updated.lastUpdated = new Date().toISOString();
 

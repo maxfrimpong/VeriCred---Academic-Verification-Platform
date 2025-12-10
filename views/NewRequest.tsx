@@ -13,6 +13,7 @@ interface NewRequestProps extends ViewProps {
 const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, paymentConfig, onTopUp, packages, globalConfig }) => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [documentBase64, setDocumentBase64] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisDone, setAnalysisDone] = useState(false);
   const [aiResult, setAiResult] = useState<AIAnalysisResult | undefined>(undefined);
@@ -76,14 +77,16 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
       const selectedFile = e.target.files[0];
       setFile(selectedFile);
       
-      // Create preview
+      // Create preview (local only)
       const objectUrl = URL.createObjectURL(selectedFile);
       setPreview(objectUrl);
 
-      // Convert to base64 for Gemini
+      // Convert to base64 for Gemini AND Storage
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64String = reader.result as string;
+        setDocumentBase64(base64String); // Store for submission
+
         // Remove data URL prefix for API
         const base64Data = base64String.split(',')[1];
         
@@ -137,7 +140,7 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
       status: initialStatus,
       submissionDate: new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
-      documentUrl: preview || undefined,
+      documentUrl: documentBase64 || undefined, // Use Base64 string for persistence
       aiAnalysis: aiResult,
       timeline: [
         {
@@ -207,6 +210,7 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
                   onClick={() => {
                     setFile(null);
                     setPreview(null);
+                    setDocumentBase64(null);
                     setAnalysisDone(false);
                     setAiResult(undefined);
                     setFormData({ candidateName: '', institution: '', degree: '', graduationYear: '', notes: '' });
