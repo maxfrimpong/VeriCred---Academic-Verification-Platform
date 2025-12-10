@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './views/Dashboard';
 import NewRequest from './views/NewRequest';
@@ -8,9 +8,10 @@ import Clients from './views/Clients';
 import AuditLog from './views/AuditLog';
 import Login from './views/Login';
 import { ViewState, VerificationRequest, VerificationStatus, User, Notification, PaymentConfig, PackageDef, GlobalConfig } from './types';
-import { Bell, X, CheckCircle, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Bell, X, CheckCircle, AlertTriangle, ExternalLink, Loader2 } from 'lucide-react';
+import { db } from './services/db';
 
-// Mock Initial Data - Used as fallback data
+// Mock Initial Data - Used as fallback data and Seeding
 const INITIAL_REQUESTS: VerificationRequest[] = [
   {
     id: 'REQ-2024-001',
@@ -143,18 +144,52 @@ const INITIAL_GLOBAL_CONFIG: GlobalConfig = {
 };
 
 const App: React.FC = () => {
+  const [loadingData, setLoadingData] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [currentRequestId, setCurrentRequestId] = useState<string | undefined>();
+  
+  // Data States
   const [requests, setRequests] = useState<VerificationRequest[]>(INITIAL_REQUESTS);
   const [allUsers, setAllUsers] = useState<User[]>(MOCK_DB_USERS); 
-  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>(INITIAL_PAYMENT_CONFIG);
-  const [globalConfig, setGlobalConfig] = useState<GlobalConfig>(INITIAL_GLOBAL_CONFIG);
   const [packages, setPackages] = useState<PackageDef[]>(INITIAL_PACKAGES);
+  const [globalConfig, setGlobalConfig] = useState<GlobalConfig>(INITIAL_GLOBAL_CONFIG);
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>(INITIAL_PAYMENT_CONFIG);
   
   // Notification State
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  // Initialize Data from Supabase
+  useEffect(() => {
+    const initData = async () => {
+        try {
+            // Attempt to seed first if tables are empty (helps integration)
+            await db.seedIfNeeded(INITIAL_REQUESTS, MOCK_DB_USERS, INITIAL_PACKAGES, INITIAL_GLOBAL_CONFIG);
+
+            // Parallel fetch
+            const [fetchedConfig, fetchedUsers, fetchedPackages, fetchedRequests] = await Promise.all([
+                db.getConfig(),
+                db.getUsers(),
+                db.getPackages(),
+                db.getRequests()
+            ]);
+
+            if (fetchedConfig) setGlobalConfig(fetchedConfig);
+            if (fetchedUsers) setAllUsers(fetchedUsers);
+            if (fetchedPackages) setPackages(fetchedPackages);
+            if (fetchedRequests) setRequests(fetchedRequests);
+
+        } catch (error) {
+            console.error("Failed to load data from Supabase, using mock fallback.", error);
+            // We stick to the INITIAL_ constants which are already in state
+        } finally {
+            setLoadingData(false);
+        }
+    };
+
+    initData();
+  }, []);
 
   const navigate = (view: ViewState, id?: string) => {
     setCurrentView(view);
@@ -191,13 +226,13 @@ const App: React.FC = () => {
             return;
         }
         
-        // Update user credits locally
+        // Update user credits locally & DB
         const newCredits = currentUser.credits - 1;
         const updatedUser = { ...currentUser, credits: newCredits };
         
-        // Update in allUsers list
         setAllUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
         setCurrentUser(updatedUser);
+        db.saveUser(updatedUser); // Sync to DB
     }
 
     const newId = `REQ-2024-${String(requests.length + 1).padStart(3, '0')}`;
@@ -207,7 +242,9 @@ const App: React.FC = () => {
       clientId: currentUser.id,
       clientName: currentUser.organization
     };
+    
     setRequests([newRequest, ...requests]);
+    db.saveRequest(newRequest); // Sync to DB
 
     // Notify
     const newNotif: Notification = {
@@ -227,11 +264,13 @@ const App: React.FC = () => {
     setRequests(prevRequests => 
       prevRequests.map(req => req.id === updatedRequest.id ? updatedRequest : req)
     );
+    db.saveRequest(updatedRequest); // Sync to DB
   };
 
   const handleAddUser = (user: User) => {
     const newUser = { ...user, id: `user-${Date.now()}`, status: 'active' as const };
     setAllUsers(prev => [...prev, newUser]);
+    db.saveUser(newUser); // Sync to DB
     
     if (currentUser) {
         const newNotif: Notification = {
@@ -249,6 +288,7 @@ const App: React.FC = () => {
 
   const handleEditUser = (updatedUser: User) => {
     setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    db.saveUser(updatedUser); // Sync to DB
     if (currentUser?.id === updatedUser.id) {
         setCurrentUser(updatedUser);
     }
@@ -256,22 +296,35 @@ const App: React.FC = () => {
 
   const handleToggleUserStatus = (userId: string, currentStatus?: string) => {
       const newStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
-      setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
+      const updatedUser = allUsers.find(u => u.id === userId);
+      if (updatedUser) {
+          const newUser = { ...updatedUser, status: newStatus };
+          handleEditUser(newUser as User); // Uses DB sync inside
+      }
   };
 
   const handleDeleteUser = (userId: string) => {
      setAllUsers(prev => prev.filter(u => u.id !== userId));
+     db.deleteUser(userId); // Sync to DB
   };
 
   // Package Management Handlers
   const handleAddPackage = (pkg: PackageDef) => {
       setPackages(prev => [...prev, pkg]);
+      db.savePackage(pkg); // Sync to DB
   };
   const handleUpdatePackage = (pkg: PackageDef) => {
       setPackages(prev => prev.map(p => p.id === pkg.id ? pkg : p));
+      db.savePackage(pkg); // Sync to DB
   };
   const handleDeletePackage = (pkgId: string) => {
       setPackages(prev => prev.filter(p => p.id !== pkgId));
+      db.deletePackage(pkgId); // Sync to DB
+  };
+
+  const handleUpdateGlobalConfig = (config: GlobalConfig) => {
+      setGlobalConfig(config);
+      db.saveConfig(config); // Sync to DB
   };
 
   const handleTopUp = (pkg: PackageDef) => {
@@ -295,6 +348,7 @@ const App: React.FC = () => {
     const updatedUser = { ...currentUser, ...updates };
     setAllUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
     setCurrentUser(updatedUser);
+    db.saveUser(updatedUser); // Sync to DB
     
     const newNotif: Notification = {
         id: `n-${Date.now()}`,
@@ -341,6 +395,17 @@ const App: React.FC = () => {
   };
 
   const getActiveRequest = () => requests.find(r => r.id === currentRequestId);
+
+  if (loadingData) {
+      return (
+          <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+              <div className="text-center">
+                  <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
+                  <p className="text-slate-500 font-medium">Connecting to VerifiVUE Database...</p>
+              </div>
+          </div>
+      );
+  }
 
   if (!currentUser) {
     return (
@@ -501,7 +566,7 @@ const App: React.FC = () => {
                 paymentConfig={paymentConfig}
                 onUpdatePaymentConfig={setPaymentConfig}
                 globalConfig={globalConfig}
-                onUpdateGlobalConfig={setGlobalConfig}
+                onUpdateGlobalConfig={handleUpdateGlobalConfig}
                 packages={packages}
                 onAddPackage={handleAddPackage}
                 onUpdatePackage={handleUpdatePackage}
