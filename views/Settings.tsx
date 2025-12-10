@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ViewProps, User, Role, PaymentGateway } from '../types';
-import { User as UserIcon, Bell, Shield, Mail, Building, Save, Users, Plus, Edit2, Trash2, X, Check, Lock, Smartphone, LogOut, CreditCard, Ban, Undo, CheckCircle, Search, RefreshCw } from 'lucide-react';
+import { ViewProps, User, Role, PaymentGateway, PackageDef, GlobalConfig } from '../types';
+import { User as UserIcon, Bell, Shield, Mail, Building, Save, Users, Plus, Edit2, Trash2, X, Check, Lock, Smartphone, LogOut, CreditCard, Ban, Undo, CheckCircle, Search, RefreshCw, LayoutTemplate, Package, Coins } from 'lucide-react';
 
 interface SettingsProps extends ViewProps {
     refreshUsers?: () => void;
@@ -8,15 +8,31 @@ interface SettingsProps extends ViewProps {
 
 const Settings: React.FC<SettingsProps> = ({ 
     navigate, user, allUsers = [], onAddUser, onEditUser, onDeleteUser, onToggleUserStatus,
-    paymentConfig, onUpdatePaymentConfig, refreshUsers
+    paymentConfig, onUpdatePaymentConfig, refreshUsers,
+    globalConfig, onUpdateGlobalConfig,
+    packages = [], onAddPackage, onUpdatePackage, onDeletePackage
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'notifications' | 'security' | 'payments'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'notifications' | 'security' | 'payments' | 'general' | 'subscriptions'>('profile');
   const isAdmin = user?.role === 'ADMIN';
+
+  // Profile Edit State
+  const [profileData, setProfileData] = useState({
+      name: user?.name || '',
+      email: user?.email || '',
+      organization: user?.organization || ''
+  });
 
   // User Management State
   const [isEditingUser, setIsEditingUser] = useState(false);
   const [editingUser, setEditingUser] = useState<Partial<User>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // General Config State
+  const [gConfig, setGConfig] = useState<GlobalConfig>(globalConfig || { appName: '', copyrightText: '', showDemoCreds: true, currency: 'USD' });
+
+  // Subscription Edit State
+  const [isEditingPackage, setIsEditingPackage] = useState(false);
+  const [editingPackage, setEditingPackage] = useState<Partial<PackageDef>>({});
 
   // Security State
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
@@ -31,6 +47,8 @@ const Settings: React.FC<SettingsProps> = ({
 
   // Payment State
   const [pConfig, setPConfig] = useState(paymentConfig);
+
+  const currencySymbol = gConfig.currency === 'GHS' ? '₵' : '$';
 
   const handleStartEdit = (userToEdit?: User) => {
     if (userToEdit) {
@@ -84,20 +102,73 @@ const Settings: React.FC<SettingsProps> = ({
     }
   };
 
+  const handleProfileUpdate = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (user && onEditUser) {
+          onEditUser({ ...user, ...profileData });
+          alert("Profile updated successfully.");
+      }
+  };
+
   const handlePasswordUpdate = (e: React.FormEvent) => {
     e.preventDefault();
     if (passwords.new !== passwords.confirm) {
         alert("New passwords do not match.");
         return;
     }
-    alert("Password updated successfully.");
-    setPasswords({ current: '', new: '', confirm: '' });
+    // Update local user state
+    if (user && onEditUser) {
+        onEditUser({ ...user, password: passwords.new });
+        alert("Password updated successfully.");
+        setPasswords({ current: '', new: '', confirm: '' });
+    }
   };
 
   const handlePaymentConfigSave = () => {
       if (onUpdatePaymentConfig && pConfig) {
           onUpdatePaymentConfig(pConfig);
           alert("Payment configuration saved.");
+      }
+  };
+
+  const handleGlobalConfigSave = () => {
+      if (onUpdateGlobalConfig) {
+          onUpdateGlobalConfig(gConfig);
+          alert("General settings saved.");
+      }
+  };
+
+  // Subscription Logic
+  const handleStartEditPackage = (pkg?: PackageDef) => {
+      if (pkg) {
+          setEditingPackage({...pkg});
+      } else {
+          setEditingPackage({
+              name: '', price: 0, credits: 0, description: ''
+          });
+      }
+      setIsEditingPackage(true);
+  };
+
+  const handleSavePackage = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingPackage.name || editingPackage.price === undefined) return;
+      
+      const pkgDef = editingPackage as PackageDef;
+
+      if (editingPackage.id) {
+          if (onUpdatePackage) onUpdatePackage(pkgDef);
+      } else {
+          const newPkg = { ...pkgDef, id: `PKG-${Date.now()}` };
+          if (onAddPackage) onAddPackage(newPkg);
+      }
+      setIsEditingPackage(false);
+      setEditingPackage({});
+  };
+
+  const handleDeletePackageClick = (pkgId: string) => {
+      if(window.confirm("Delete this subscription package?")) {
+          if(onDeletePackage) onDeletePackage(pkgId);
       }
   };
 
@@ -138,8 +209,35 @@ const Settings: React.FC<SettingsProps> = ({
             <UserIcon className="w-4 h-4" /> Profile
           </button>
           
+          <button 
+            onClick={() => setActiveTab('security')}
+            className={`w-full text-left px-4 py-2 font-medium rounded-lg flex items-center gap-3 transition-colors ${
+                activeTab === 'security' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <Shield className="w-4 h-4" /> Security
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('notifications')}
+            className={`w-full text-left px-4 py-2 font-medium rounded-lg flex items-center gap-3 transition-colors ${
+                activeTab === 'notifications' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <Bell className="w-4 h-4" /> Notifications
+          </button>
+
           {isAdmin && (
             <>
+            <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Admin Settings</div>
+            <button 
+                onClick={() => setActiveTab('general')}
+                className={`w-full text-left px-4 py-2 font-medium rounded-lg flex items-center gap-3 transition-colors ${
+                    activeTab === 'general' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                }`}
+            >
+                <LayoutTemplate className="w-4 h-4" /> General
+            </button>
              <button 
                 onClick={() => setActiveTab('users')}
                 className={`w-full text-left px-4 py-2 font-medium rounded-lg flex items-center gap-3 transition-colors ${
@@ -147,6 +245,14 @@ const Settings: React.FC<SettingsProps> = ({
                 }`}
             >
                 <Users className="w-4 h-4" /> User Management
+            </button>
+            <button 
+                onClick={() => setActiveTab('subscriptions')}
+                className={`w-full text-left px-4 py-2 font-medium rounded-lg flex items-center gap-3 transition-colors ${
+                    activeTab === 'subscriptions' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                }`}
+            >
+                <Package className="w-4 h-4" /> Subscriptions
             </button>
             <button 
                 onClick={() => setActiveTab('payments')}
@@ -158,29 +264,12 @@ const Settings: React.FC<SettingsProps> = ({
             </button>
             </>
           )}
-
-          <button 
-            onClick={() => setActiveTab('notifications')}
-            className={`w-full text-left px-4 py-2 font-medium rounded-lg flex items-center gap-3 transition-colors ${
-                activeTab === 'notifications' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <Bell className="w-4 h-4" /> Notifications
-          </button>
-          
-          <button 
-            onClick={() => setActiveTab('security')}
-            className={`w-full text-left px-4 py-2 font-medium rounded-lg flex items-center gap-3 transition-colors ${
-                activeTab === 'security' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <Shield className="w-4 h-4" /> Security
-          </button>
         </div>
 
         {/* Main Settings Content */}
         <div className="md:col-span-2 space-y-6">
           
+          {/* PROFILE TAB */}
           {activeTab === 'profile' && (
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in">
                 <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
@@ -188,18 +277,28 @@ const Settings: React.FC<SettingsProps> = ({
                   Profile Information
                 </h2>
                 
-                <div className="space-y-4">
+                <form onSubmit={handleProfileUpdate} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
-                      <input type="text" defaultValue={user?.name} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" />
+                      <input 
+                        type="text" 
+                        value={profileData.name}
+                        onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" 
+                      />
                     </div>
                   </div>
     
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
                     <div className="relative">
-                      <input type="email" defaultValue={user?.email} className="w-full pl-10 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" />
+                      <input 
+                        type="email" 
+                        value={profileData.email}
+                        onChange={(e) => setProfileData({...profileData, email: e.target.value})}
+                        className="w-full pl-10 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" 
+                      />
                       <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                     </div>
                   </div>
@@ -207,20 +306,240 @@ const Settings: React.FC<SettingsProps> = ({
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Organization</label>
                     <div className="relative">
-                      <input type="text" defaultValue={user?.organization} className="w-full pl-10 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" />
+                      <input 
+                        type="text" 
+                        value={profileData.organization}
+                        onChange={(e) => setProfileData({...profileData, organization: e.target.value})}
+                        className="w-full pl-10 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" 
+                      />
                       <Building className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                     </div>
                   </div>
-                </div>
                 
-                <div className="mt-6 flex justify-end">
-                  <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2">
-                    <Save className="w-4 h-4" /> Save Changes
-                  </button>
-                </div>
+                    <div className="mt-6 flex justify-end">
+                    <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2">
+                        <Save className="w-4 h-4" /> Save Changes
+                    </button>
+                    </div>
+                </form>
               </div>
           )}
 
+          {/* GENERAL TAB (ADMIN) */}
+          {activeTab === 'general' && isAdmin && (
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in">
+                  <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+                      <LayoutTemplate className="w-5 h-5 text-indigo-600" />
+                      Global Configuration
+                  </h2>
+                  <div className="space-y-6">
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Application Name</label>
+                          <input 
+                            type="text" 
+                            value={gConfig.appName}
+                            onChange={(e) => setGConfig({...gConfig, appName: e.target.value})}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Logo URL</label>
+                          <input 
+                            type="text" 
+                            value={gConfig.logoUrl || ''}
+                            onChange={(e) => setGConfig({...gConfig, logoUrl: e.target.value})}
+                            placeholder="https://example.com/logo.png"
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <p className="text-xs text-slate-500 mt-1">URL to a PNG or JPG image.</p>
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Copyright Text</label>
+                          <input 
+                            type="text" 
+                            value={gConfig.copyrightText}
+                            onChange={(e) => setGConfig({...gConfig, copyrightText: e.target.value})}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                      </div>
+                      
+                      {/* Currency Selector */}
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Currency</label>
+                          <div className="relative">
+                            <select 
+                                value={gConfig.currency}
+                                onChange={(e) => setGConfig({...gConfig, currency: e.target.value as 'USD' | 'GHS'})}
+                                className="w-full px-3 py-2 pl-10 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
+                            >
+                                <option value="USD">USD ($) - United States Dollar</option>
+                                <option value="GHS">GHS (₵) - Ghanaian Cedi</option>
+                            </select>
+                            <Coins className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                          </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                          <div>
+                              <h3 className="font-medium text-slate-900">Demo Mode</h3>
+                              <p className="text-sm text-slate-500">Show demo credentials on login screen</p>
+                          </div>
+                          <Toggle 
+                            checked={gConfig.showDemoCreds} 
+                            onChange={() => setGConfig({...gConfig, showDemoCreds: !gConfig.showDemoCreds})} 
+                          />
+                      </div>
+
+                      <div className="mt-6 flex justify-end">
+                        <button 
+                            onClick={handleGlobalConfigSave}
+                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                        >
+                            <Save className="w-4 h-4" /> Save Configuration
+                        </button>
+                      </div>
+                  </div>
+              </div>
+          )}
+
+          {/* SUBSCRIPTIONS TAB (ADMIN) */}
+          {activeTab === 'subscriptions' && isAdmin && (
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in">
+                  {!isEditingPackage ? (
+                    <>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                <Package className="w-5 h-5 text-indigo-600" />
+                                Subscription Packages
+                            </h2>
+                            <button 
+                                onClick={() => handleStartEditPackage()}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                            >
+                                <Plus className="w-4 h-4" /> Add Package
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            {packages.map(pkg => (
+                                <div key={pkg.id} className="border border-slate-200 rounded-xl p-4 flex justify-between items-center hover:bg-slate-50">
+                                    <div>
+                                        <h3 className="font-bold text-slate-900">{pkg.name}</h3>
+                                        <p className="text-xs text-slate-500">{pkg.description}</p>
+                                        <div className="flex gap-3 mt-1 text-sm font-medium">
+                                            <span className="text-indigo-600">{currencySymbol}{pkg.price}</span>
+                                            <span className="text-slate-600">{pkg.credits === 'UNLIMITED' ? 'Unlimited' : `${pkg.credits} Credits`}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleStartEditPackage(pkg)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"><Edit2 className="w-4 h-4" /></button>
+                                        <button onClick={() => handleDeletePackageClick(pkg.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                  ) : (
+                      <form onSubmit={handleSavePackage} className="space-y-4">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-slate-900">
+                                {editingPackage.id ? 'Edit Package' : 'Create Package'}
+                            </h3>
+                            <button 
+                                type="button" 
+                                onClick={() => setIsEditingPackage(false)}
+                                className="text-slate-400 hover:text-slate-600"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Package Name</label>
+                                <input 
+                                    type="text" 
+                                    value={editingPackage.name}
+                                    onChange={(e) => setEditingPackage({...editingPackage, name: e.target.value})}
+                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">ID (Unique)</label>
+                                <input 
+                                    type="text" 
+                                    value={editingPackage.id || ''}
+                                    disabled={!!editingPackage.id} // Cannot edit ID of existing
+                                    placeholder="e.g. STARTER"
+                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Price ({currencySymbol})</label>
+                                <input 
+                                    type="number" 
+                                    value={editingPackage.price}
+                                    onChange={(e) => setEditingPackage({...editingPackage, price: parseFloat(e.target.value)})}
+                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Credits</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="number" 
+                                        value={editingPackage.credits === 'UNLIMITED' ? 9999 : editingPackage.credits}
+                                        disabled={editingPackage.credits === 'UNLIMITED'}
+                                        onChange={(e) => setEditingPackage({...editingPackage, credits: parseInt(e.target.value)})}
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                                    />
+                                    <label className="flex items-center gap-1 text-xs">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={editingPackage.credits === 'UNLIMITED'}
+                                            onChange={(e) => setEditingPackage({...editingPackage, credits: e.target.checked ? 'UNLIMITED' : 10})}
+                                        /> Unlimited
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                         <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                            <input 
+                                type="text" 
+                                value={editingPackage.description}
+                                onChange={(e) => setEditingPackage({...editingPackage, description: e.target.value})}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                        </div>
+
+                        <div className="flex justify-end pt-4 gap-2 border-t border-slate-100 mt-4">
+                             <button 
+                                type="button" 
+                                onClick={() => setIsEditingPackage(false)}
+                                className="px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-lg"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                type="submit" 
+                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
+                            >
+                                Save Package
+                            </button>
+                        </div>
+
+                      </form>
+                  )}
+              </div>
+          )}
+
+          {/* PAYMENTS TAB */}
           {activeTab === 'payments' && isAdmin && pConfig && (
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in">
                   <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
@@ -287,30 +606,7 @@ const Settings: React.FC<SettingsProps> = ({
                           </div>
                       </div>
 
-                      <div className="border-t border-slate-100 pt-6 space-y-4">
-                          <h3 className="font-semibold text-slate-900">PayPal Settings</h3>
-                          <div>
-                              <label className="block text-xs font-medium text-slate-500 mb-1">Client ID</label>
-                              <input 
-                                type="text" 
-                                value={pConfig.keys.paypal.clientId}
-                                onChange={(e) => setPConfig({...pConfig, keys: { ...pConfig.keys, paypal: { ...pConfig.keys.paypal, clientId: e.target.value }}})}
-                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" 
-                              />
-                          </div>
-                          <div>
-                              <label className="block text-xs font-medium text-slate-500 mb-1">Secret</label>
-                              <input 
-                                type="password" 
-                                value={pConfig.keys.paypal.secret}
-                                onChange={(e) => setPConfig({...pConfig, keys: { ...pConfig.keys, paypal: { ...pConfig.keys.paypal, secret: e.target.value }}})}
-                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" 
-                              />
-                          </div>
-                      </div>
-                  </div>
-
-                  <div className="mt-8 flex justify-end">
+                      <div className="mt-8 flex justify-end">
                       <button 
                         onClick={handlePaymentConfigSave}
                         className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
@@ -319,8 +615,10 @@ const Settings: React.FC<SettingsProps> = ({
                       </button>
                   </div>
               </div>
+            </div>
           )}
 
+          {/* USER MANAGEMENT TAB */}
           {activeTab === 'users' && isAdmin && (
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in">
                 {!isEditingUser ? (
@@ -558,41 +856,6 @@ const Settings: React.FC<SettingsProps> = ({
             </div>
           )}
 
-          {activeTab === 'notifications' && (
-             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in">
-                 <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-                    <Bell className="w-5 h-5 text-indigo-600" />
-                    Notification Preferences
-                </h2>
-                
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between pb-4 border-b border-slate-50">
-                        <div>
-                            <h3 className="font-medium text-slate-900">Email Notifications</h3>
-                            <p className="text-sm text-slate-500">Receive emails about new requests</p>
-                        </div>
-                        <Toggle checked={notifPreferences.emailRequest} onChange={() => setNotifPreferences({...notifPreferences, emailRequest: !notifPreferences.emailRequest})} />
-                    </div>
-                    
-                    <div className="flex items-center justify-between pb-4 border-b border-slate-50">
-                        <div>
-                            <h3 className="font-medium text-slate-900">Status Updates</h3>
-                            <p className="text-sm text-slate-500">Get notified when status changes</p>
-                        </div>
-                         <Toggle checked={notifPreferences.emailStatus} onChange={() => setNotifPreferences({...notifPreferences, emailStatus: !notifPreferences.emailStatus})} />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="font-medium text-slate-900">Marketing Emails</h3>
-                            <p className="text-sm text-slate-500">Receive news and special offers</p>
-                        </div>
-                         <Toggle checked={notifPreferences.marketing} onChange={() => setNotifPreferences({...notifPreferences, marketing: !notifPreferences.marketing})} />
-                    </div>
-                </div>
-             </div>
-          )}
-
           {activeTab === 'security' && (
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in">
                 <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
@@ -645,6 +908,41 @@ const Settings: React.FC<SettingsProps> = ({
                     </div>
                 </form>
               </div>
+          )}
+
+          {activeTab === 'notifications' && (
+             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in">
+                 <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+                    <Bell className="w-5 h-5 text-indigo-600" />
+                    Notification Preferences
+                </h2>
+                
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-50">
+                        <div>
+                            <h3 className="font-medium text-slate-900">Email Notifications</h3>
+                            <p className="text-sm text-slate-500">Receive emails about new requests</p>
+                        </div>
+                        <Toggle checked={notifPreferences.emailRequest} onChange={() => setNotifPreferences({...notifPreferences, emailRequest: !notifPreferences.emailRequest})} />
+                    </div>
+                    
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-50">
+                        <div>
+                            <h3 className="font-medium text-slate-900">Status Updates</h3>
+                            <p className="text-sm text-slate-500">Get notified when status changes</p>
+                        </div>
+                         <Toggle checked={notifPreferences.emailStatus} onChange={() => setNotifPreferences({...notifPreferences, emailStatus: !notifPreferences.emailStatus})} />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="font-medium text-slate-900">Marketing Emails</h3>
+                            <p className="text-sm text-slate-500">Receive news and special offers</p>
+                        </div>
+                         <Toggle checked={notifPreferences.marketing} onChange={() => setNotifPreferences({...notifPreferences, marketing: !notifPreferences.marketing})} />
+                    </div>
+                </div>
+             </div>
           )}
 
         </div>

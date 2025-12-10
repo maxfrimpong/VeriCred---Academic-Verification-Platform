@@ -1,18 +1,21 @@
 import React from 'react';
 import { LayoutDashboard, FilePlus, ShieldCheck, Settings, LogOut, CheckCircle, Users, ScrollText, UserCircle, CreditCard } from 'lucide-react';
-import { ViewState, User } from '../types';
+import { ViewState, User, GlobalConfig } from '../types';
 
 interface SidebarProps {
   currentView: ViewState;
   onNavigate: (view: ViewState) => void;
   onSignOut: () => void;
   user?: User;
+  globalConfig?: GlobalConfig;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onSignOut, user }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onSignOut, user, globalConfig }) => {
   const isAdmin = user?.role === 'ADMIN';
   const isOfficer = user?.role === 'VERIFICATION_OFFICER';
   const isClient = user?.role === 'CLIENT';
+
+  const appName = globalConfig?.appName || 'VerifiVUE';
 
   const getRoleLabel = () => {
     if (isAdmin) return 'Admin Portal';
@@ -29,11 +32,15 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onSignOut, u
   return (
     <div className="w-64 bg-slate-900 text-white h-screen fixed left-0 top-0 flex flex-col shadow-xl z-20">
       <div className="p-6 flex items-center gap-3 border-b border-slate-800">
-        <div className="bg-indigo-500 p-2 rounded-lg">
-          <ShieldCheck className="w-6 h-6 text-white" />
-        </div>
-        <div>
-            <span className="text-xl font-bold tracking-tight block">VerifiVUE</span>
+        {globalConfig?.logoUrl ? (
+             <img src={globalConfig.logoUrl} alt="Logo" className="w-8 h-8 object-contain" />
+        ) : (
+            <div className="bg-indigo-500 p-2 rounded-lg shrink-0">
+                <ShieldCheck className="w-6 h-6 text-white" />
+            </div>
+        )}
+        <div className="overflow-hidden">
+            <span className="text-xl font-bold tracking-tight block truncate">{appName}</span>
             <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">{getRoleLabel()}</span>
         </div>
       </div>

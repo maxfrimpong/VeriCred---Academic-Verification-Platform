@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './views/Dashboard';
 import NewRequest from './views/NewRequest';
@@ -7,7 +7,7 @@ import Settings from './views/Settings';
 import Clients from './views/Clients';
 import AuditLog from './views/AuditLog';
 import Login from './views/Login';
-import { ViewState, VerificationRequest, VerificationStatus, User, Notification, PaymentConfig, PackageDef, Role } from './types';
+import { ViewState, VerificationRequest, VerificationStatus, User, Notification, PaymentConfig, PackageDef, GlobalConfig } from './types';
 import { Bell, X, CheckCircle, AlertTriangle, ExternalLink } from 'lucide-react';
 
 // Mock Initial Data - Used as fallback data
@@ -59,7 +59,8 @@ const INITIAL_REQUESTS: VerificationRequest[] = [
   },
 ];
 
-const INITIAL_USERS: User[] = [
+// Mock Users Database
+const MOCK_DB_USERS: User[] = [
   {
     id: 'u-admin',
     name: 'System Admin',
@@ -88,7 +89,40 @@ const INITIAL_USERS: User[] = [
     role: 'CLIENT',
     organization: 'TechGlobal Inc.',
     credits: 15,
+    subscriptionPlan: 'CORPORATE_PRO',
     status: 'active'
+  }
+];
+
+const INITIAL_PACKAGES: PackageDef[] = [
+  {
+    id: 'STANDARD',
+    name: 'Standard',
+    price: 120,
+    credits: 1,
+    description: 'Perfect for one-off verification needs.'
+  },
+  {
+    id: 'CORPORATE_PLUS',
+    name: 'Corporate Plus',
+    price: 600,
+    credits: 5,
+    description: 'For small businesses with occasional hiring.'
+  },
+  {
+    id: 'CORPORATE_PRO',
+    name: 'Corporate Pro',
+    price: 1200,
+    credits: 10,
+    description: 'Ideal for growing teams and regular checks.'
+  },
+  {
+    id: 'ENTERPRISE',
+    name: 'Enterprise',
+    price: 2500,
+    credits: 'UNLIMITED',
+    durationMonths: 12,
+    description: 'Unlimited access for high-volume institutions.'
   }
 ];
 
@@ -101,13 +135,22 @@ const INITIAL_PAYMENT_CONFIG: PaymentConfig = {
     }
 };
 
+const INITIAL_GLOBAL_CONFIG: GlobalConfig = {
+    appName: 'VerifiVUE',
+    copyrightText: '© 2024 VerifiVUE Inc. All rights reserved.',
+    showDemoCreds: true,
+    currency: 'USD'
+};
+
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [currentRequestId, setCurrentRequestId] = useState<string | undefined>();
   const [requests, setRequests] = useState<VerificationRequest[]>(INITIAL_REQUESTS);
-  const [allUsers, setAllUsers] = useState<User[]>(INITIAL_USERS); 
+  const [allUsers, setAllUsers] = useState<User[]>(MOCK_DB_USERS); 
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>(INITIAL_PAYMENT_CONFIG);
+  const [globalConfig, setGlobalConfig] = useState<GlobalConfig>(INITIAL_GLOBAL_CONFIG);
+  const [packages, setPackages] = useState<PackageDef[]>(INITIAL_PACKAGES);
   
   // Notification State
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -125,7 +168,7 @@ const App: React.FC = () => {
       navigate('dashboard');
   };
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
       setCurrentUser(null);
       setCurrentView('dashboard');
       setShowNotifications(false);
@@ -186,20 +229,16 @@ const App: React.FC = () => {
     );
   };
 
-  // User Management Handlers (Local State)
   const handleAddUser = (user: User) => {
     const newUser = { ...user, id: `user-${Date.now()}`, status: 'active' as const };
     setAllUsers(prev => [...prev, newUser]);
     
-    // Auto login if it was a registration
-    if (!currentUser) {
-        handleLogin(newUser);
-    } else {
+    if (currentUser) {
         const newNotif: Notification = {
             id: `n-${Date.now()}`,
             userId: currentUser.id,
-            title: 'User Created',
-            message: `User ${user.name} (${user.role}) has been successfully created.`,
+            title: 'User Added',
+            message: `User ${user.name} (${user.role}) has been added.`,
             type: 'success',
             timestamp: new Date().toISOString(),
             read: false
@@ -224,21 +263,32 @@ const App: React.FC = () => {
      setAllUsers(prev => prev.filter(u => u.id !== userId));
   };
 
+  // Package Management Handlers
+  const handleAddPackage = (pkg: PackageDef) => {
+      setPackages(prev => [...prev, pkg]);
+  };
+  const handleUpdatePackage = (pkg: PackageDef) => {
+      setPackages(prev => prev.map(p => p.id === pkg.id ? pkg : p));
+  };
+  const handleDeletePackage = (pkgId: string) => {
+      setPackages(prev => prev.filter(p => p.id !== pkgId));
+  };
+
   const handleTopUp = (pkg: PackageDef) => {
     if (!currentUser) return;
 
     let updates: Partial<User> = {};
 
-    if (pkg.id === 'ENTERPRISE') {
+    if (pkg.credits === 'UNLIMITED') {
         const nextYear = new Date();
         nextYear.setFullYear(nextYear.getFullYear() + 1);
-        updates.subscriptionPlan = 'ENTERPRISE';
+        updates.subscriptionPlan = pkg.id; // use package ID dynamically
         updates.subscriptionExpiry = nextYear.toISOString();
     } else {
         const currentCredits = currentUser.credits || 0;
         const addCredits = typeof pkg.credits === 'number' ? pkg.credits : 0;
         updates.credits = currentCredits + addCredits;
-        updates.subscriptionPlan = pkg.id as any;
+        updates.subscriptionPlan = pkg.id;
         updates.subscriptionExpiry = undefined;
     }
 
@@ -258,7 +308,7 @@ const App: React.FC = () => {
     setNotifications(prev => [newNotif, ...prev]);
   };
 
-  // --- Notifications Logic ---
+  // Notifications Logic
   const myNotifications = currentUser 
     ? notifications.filter(n => n.userId === currentUser.id) 
     : [];
@@ -280,9 +330,7 @@ const App: React.FC = () => {
     setNotifications(prev => prev.filter(n => n.userId !== currentUser?.id));
   };
 
-  // --- Render Helpers ---
-
-  // Filter requests based on role
+  // Filter requests
   const getVisibleRequests = () => {
     if (!currentUser) return [];
     if (currentUser.role === 'ADMIN' || currentUser.role === 'VERIFICATION_OFFICER') {
@@ -299,7 +347,7 @@ const App: React.FC = () => {
         <Login 
             onLogin={handleLogin} 
             availableUsers={allUsers}
-            onRegister={handleAddUser} 
+            globalConfig={globalConfig}
         />
     );
   }
@@ -313,10 +361,10 @@ const App: React.FC = () => {
         onNavigate={navigate} 
         onSignOut={handleSignOut}
         user={currentUser}
+        globalConfig={globalConfig}
       />
       
-      <main className="flex-1 ml-64 p-8 pt-20 relative">
-        
+      <main className="flex-1 ml-64 p-8 pt-20 relative flex flex-col min-h-screen">
         {/* Top Header Bar with Notifications */}
         <div className="fixed top-0 right-0 left-64 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 z-30 flex justify-end items-center px-8 shadow-sm">
              <div className="relative">
@@ -390,12 +438,15 @@ const App: React.FC = () => {
         </div>
 
         {/* Content Area */}
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto flex-1 w-full">
           {currentView === 'dashboard' && (
             <Dashboard 
               navigate={navigate} 
               requests={visibleRequests} 
               user={currentUser}
+              allUsers={allUsers}
+              packages={packages}
+              globalConfig={globalConfig}
             />
           )}
           
@@ -406,6 +457,8 @@ const App: React.FC = () => {
                 user={currentUser}
                 paymentConfig={paymentConfig}
                 onTopUp={handleTopUp}
+                packages={packages}
+                globalConfig={globalConfig}
             />
           )}
 
@@ -447,9 +500,20 @@ const App: React.FC = () => {
                 onToggleUserStatus={handleToggleUserStatus}
                 paymentConfig={paymentConfig}
                 onUpdatePaymentConfig={setPaymentConfig}
+                globalConfig={globalConfig}
+                onUpdateGlobalConfig={setGlobalConfig}
+                packages={packages}
+                onAddPackage={handleAddPackage}
+                onUpdatePackage={handleUpdatePackage}
+                onDeletePackage={handleDeletePackage}
             />
           )}
         </div>
+        
+        {/* Global Copyright Footer */}
+        <footer className="mt-auto py-6 text-center border-t border-slate-100 text-slate-400 text-sm">
+            {globalConfig.copyrightText}
+        </footer>
       </main>
     </div>
   );

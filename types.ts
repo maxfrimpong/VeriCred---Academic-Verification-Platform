@@ -9,7 +9,7 @@ export interface User {
   password?: string;
   // Subscription fields
   credits: number;
-  subscriptionPlan?: 'STANDARD' | 'CORPORATE_PLUS' | 'CORPORATE_PRO' | 'ENTERPRISE';
+  subscriptionPlan?: string; // Changed from literal union to string to support dynamic packages
   subscriptionExpiry?: string; // ISO Date for Enterprise
   status?: 'active' | 'suspended';
 }
@@ -97,6 +97,14 @@ export interface PackageDef {
   description: string;
 }
 
+export interface GlobalConfig {
+  appName: string;
+  logoUrl?: string; // Optional URL or Base64
+  copyrightText: string;
+  showDemoCreds: boolean;
+  currency: 'USD' | 'GHS';
+}
+
 export interface ViewProps {
   navigate: (view: ViewState, id?: string) => void;
   currentId?: string;
@@ -114,4 +122,12 @@ export interface ViewProps {
   paymentConfig?: PaymentConfig;
   onUpdatePaymentConfig?: (config: PaymentConfig) => void;
   onTopUp?: (pkg: PackageDef) => void;
+  // Global Config Props
+  globalConfig?: GlobalConfig;
+  onUpdateGlobalConfig?: (config: GlobalConfig) => void;
+  // Package Management Props
+  packages?: PackageDef[];
+  onAddPackage?: (pkg: PackageDef) => void;
+  onUpdatePackage?: (pkg: PackageDef) => void;
+  onDeletePackage?: (pkgId: string) => void;
 }

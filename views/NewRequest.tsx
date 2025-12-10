@@ -1,14 +1,16 @@
 import React, { useState, useRef, ChangeEvent } from 'react';
 import { Upload, X, Loader2, Sparkles, CheckCircle, AlertTriangle } from 'lucide-react';
-import { ViewProps, VerificationRequest, VerificationStatus, AIAnalysisResult } from '../types';
+import { ViewProps, VerificationRequest, VerificationStatus, AIAnalysisResult, PackageDef, GlobalConfig } from '../types';
 import { analyzeDocument } from '../services/geminiService';
 import Pricing from './Pricing';
 
 interface NewRequestProps extends ViewProps {
   onSubmit: (req: Omit<VerificationRequest, 'id' | 'clientId' | 'clientName'>) => void;
+  packages?: PackageDef[];
+  globalConfig?: GlobalConfig;
 }
 
-const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, paymentConfig, onTopUp }) => {
+const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, paymentConfig, onTopUp, packages, globalConfig }) => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -61,6 +63,8 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
                     onPurchase={onTopUp} 
                     paymentConfig={paymentConfig}
                     currentPlan={user.subscriptionPlan}
+                    packages={packages}
+                    currency={globalConfig?.currency}
                 />
             </div>
         </div>

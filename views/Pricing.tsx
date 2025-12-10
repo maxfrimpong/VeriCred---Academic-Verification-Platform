@@ -6,42 +6,13 @@ interface PricingProps {
   onPurchase: (pkg: PackageDef) => void;
   paymentConfig: PaymentConfig;
   currentPlan?: string;
+  packages?: PackageDef[];
+  currency?: 'USD' | 'GHS';
 }
 
-export const PACKAGES: PackageDef[] = [
-  {
-    id: 'STANDARD',
-    name: 'Standard',
-    price: 120,
-    credits: 1,
-    description: 'Perfect for one-off verification needs.'
-  },
-  {
-    id: 'CORPORATE_PLUS',
-    name: 'Corporate Plus',
-    price: 600,
-    credits: 5,
-    description: 'For small businesses with occasional hiring.'
-  },
-  {
-    id: 'CORPORATE_PRO',
-    name: 'Corporate Pro',
-    price: 1200,
-    credits: 10,
-    description: 'Ideal for growing teams and regular checks.'
-  },
-  {
-    id: 'ENTERPRISE',
-    name: 'Enterprise',
-    price: 2500,
-    credits: 'UNLIMITED',
-    durationMonths: 12,
-    description: 'Unlimited access for high-volume institutions.'
-  }
-];
-
-const Pricing: React.FC<PricingProps> = ({ onPurchase, paymentConfig, currentPlan }) => {
+const Pricing: React.FC<PricingProps> = ({ onPurchase, paymentConfig, currentPlan, packages = [], currency = 'USD' }) => {
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const currencySymbol = currency === 'GHS' ? '₵' : '$';
 
   const handleBuy = (pkg: PackageDef) => {
     setProcessingId(pkg.id);
@@ -51,7 +22,7 @@ const Pricing: React.FC<PricingProps> = ({ onPurchase, paymentConfig, currentPla
       // In a real app, this would redirect to Stripe/Paystack/PayPal or open a modal
       const confirmed = window.confirm(
         `Mock Payment Gateway (${paymentConfig.activeGateway}):\n\n` +
-        `Processing payment of $${pkg.price} for ${pkg.name} package.\n\n` +
+        `Processing payment of ${currencySymbol}${pkg.price} for ${pkg.name} package.\n\n` +
         `Click OK to simulate successful payment.`
       );
 
@@ -83,7 +54,7 @@ const Pricing: React.FC<PricingProps> = ({ onPurchase, paymentConfig, currentPla
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        {PACKAGES.map((pkg) => {
+        {packages.map((pkg) => {
             const isEnterprise = pkg.credits === 'UNLIMITED';
             const isCurrent = currentPlan === pkg.id;
 
@@ -103,7 +74,7 @@ const Pricing: React.FC<PricingProps> = ({ onPurchase, paymentConfig, currentPla
                         <p className="text-slate-500 text-sm mt-1 min-h-[40px]">{pkg.description}</p>
                         
                         <div className="mt-6 flex items-baseline gap-1">
-                            <span className="text-3xl font-bold text-slate-900">${pkg.price}</span>
+                            <span className="text-3xl font-bold text-slate-900">{currencySymbol}{pkg.price}</span>
                             {isEnterprise && <span className="text-slate-500 text-sm">/year</span>}
                         </div>
 
