@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './views/Dashboard';
 import NewRequest from './views/NewRequest';
@@ -143,9 +143,22 @@ const INITIAL_GLOBAL_CONFIG: GlobalConfig = {
     currency: 'USD'
 };
 
+const USER_STORAGE_KEY = 'verifivue_user_session';
+const INACTIVITY_LIMIT_MS = 10 * 60 * 1000; // 10 Minutes
+
 const App: React.FC = () => {
   const [loadingData, setLoadingData] = useState(true);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  
+  // Initialize currentUser from LocalStorage if available
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+        const savedUser = localStorage.getItem(USER_STORAGE_KEY);
+        return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+        return null;
+    }
+  });
+
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [currentRequestId, setCurrentRequestId] = useState<string | undefined>();
   
@@ -201,6 +214,67 @@ const App: React.FC = () => {
     initData();
   }, []);
 
+  // --- Session Management Handlers ---
+
+  const handleLogin = (user: User) => {
+      setCurrentUser(user);
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+      navigate('dashboard');
+  };
+
+  const handleSignOut = useCallback(() => {
+      setCurrentUser(null);
+      localStorage.removeItem(USER_STORAGE_KEY);
+      
+      // Clean URL params on logout
+      const url = new URL(window.location.href);
+      url.searchParams.delete('view');
+      url.searchParams.delete('id');
+      window.history.pushState({}, '', url);
+
+      setCurrentView('dashboard');
+      setShowNotifications(false);
+  }, []);
+
+  // --- Inactivity Timer Logic ---
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let inactivityTimer: ReturnType<typeof setTimeout>;
+
+    const logoutDueToInactivity = () => {
+        handleSignOut();
+        alert("For security, you have been signed out due to inactivity (10 minutes).");
+    };
+
+    const resetTimer = () => {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(logoutDueToInactivity, INACTIVITY_LIMIT_MS);
+    };
+
+    // Activity events to listen for
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    
+    // Attach listeners
+    events.forEach(event => {
+        document.addEventListener(event, resetTimer);
+    });
+
+    // Start initial timer
+    resetTimer();
+
+    // Cleanup listeners
+    return () => {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        events.forEach(event => {
+            document.removeEventListener(event, resetTimer);
+        });
+    };
+  }, [currentUser, handleSignOut]);
+
+
+  // --- Navigation & Core Logic ---
+
   const navigate = (view: ViewState, id?: string) => {
     setCurrentView(view);
     if (id) setCurrentRequestId(id);
@@ -214,23 +288,6 @@ const App: React.FC = () => {
 
     setShowNotifications(false);
     window.scrollTo(0,0);
-  };
-
-  const handleLogin = (user: User) => {
-      setCurrentUser(user);
-      navigate('dashboard');
-  };
-
-  const handleSignOut = () => {
-      setCurrentUser(null);
-      setCurrentView('dashboard');
-      
-      const url = new URL(window.location.href);
-      url.searchParams.delete('view');
-      url.searchParams.delete('id');
-      window.history.pushState({}, '', url);
-
-      setShowNotifications(false);
   };
 
   const handleNewRequest = async (req: Omit<VerificationRequest, 'id' | 'clientId' | 'clientName'>) => {
@@ -256,6 +313,8 @@ const App: React.FC = () => {
         
         setAllUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
         setCurrentUser(updatedUser);
+        // Update storage as well for credit persistence across reloads
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser));
         db.saveUser(updatedUser); // Sync to DB
     }
 
@@ -315,6 +374,7 @@ const App: React.FC = () => {
     db.saveUser(updatedUser); // Sync to DB
     if (currentUser?.id === updatedUser.id) {
         setCurrentUser(updatedUser);
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser));
     }
   };
 
@@ -372,6 +432,7 @@ const App: React.FC = () => {
     const updatedUser = { ...currentUser, ...updates };
     setAllUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
     setCurrentUser(updatedUser);
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser)); // Update persistence
     db.saveUser(updatedUser); // Sync to DB
     
     const newNotif: Notification = {
