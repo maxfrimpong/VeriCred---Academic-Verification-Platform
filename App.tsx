@@ -180,6 +180,16 @@ const App: React.FC = () => {
             if (fetchedPackages) setPackages(fetchedPackages);
             if (fetchedRequests) setRequests(fetchedRequests);
 
+            // Handle Deep Linking
+            const params = new URLSearchParams(window.location.search);
+            const viewParam = params.get('view') as ViewState;
+            const idParam = params.get('id');
+
+            if (viewParam && ['dashboard', 'new-request', 'request-detail', 'settings', 'clients', 'audit-log'].includes(viewParam)) {
+                setCurrentView(viewParam);
+                if (idParam) setCurrentRequestId(idParam);
+            }
+
         } catch (error) {
             console.error("Failed to load data from Supabase, using mock fallback.", error);
             // We stick to the INITIAL_ constants which are already in state
@@ -194,6 +204,14 @@ const App: React.FC = () => {
   const navigate = (view: ViewState, id?: string) => {
     setCurrentView(view);
     if (id) setCurrentRequestId(id);
+    
+    // Update URL without reloading
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', view);
+    if (id) url.searchParams.set('id', id);
+    else url.searchParams.delete('id');
+    window.history.pushState({}, '', url);
+
     setShowNotifications(false);
     window.scrollTo(0,0);
   };
@@ -206,6 +224,12 @@ const App: React.FC = () => {
   const handleSignOut = () => {
       setCurrentUser(null);
       setCurrentView('dashboard');
+      
+      const url = new URL(window.location.href);
+      url.searchParams.delete('view');
+      url.searchParams.delete('id');
+      window.history.pushState({}, '', url);
+
       setShowNotifications(false);
   };
 
@@ -533,6 +557,7 @@ const App: React.FC = () => {
                 request={getActiveRequest()} 
                 user={currentUser}
                 onUpdateRequest={handleUpdateRequest}
+                allUsers={allUsers}
             />
           )}
           

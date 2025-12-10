@@ -9,10 +9,21 @@ const mapUserFromDB = (u: any): User => ({
 });
 
 const mapRequestFromDB = (r: any): VerificationRequest => ({
-  ...r,
-  aiAnalysis: r.ai_analysis,
+  id: r.id,
+  candidateName: r.candidate_name,
+  institution: r.institution,
+  degree: r.degree,
+  graduationYear: r.graduation_year,
+  status: r.status,
+  submissionDate: r.submission_date,
+  lastUpdated: r.last_updated,
+  clientId: r.client_id,
+  clientName: r.client_name,
   documentUrl: r.document_url,
-  // Ensure timeline is parsed if it came as string, though supabase js client usually handles json
+  verificationOutcome: r.verification_outcome,
+  finalReportNote: r.final_report_note,
+  manualVerificationRequested: r.manual_verification_requested,
+  aiAnalysis: r.ai_analysis,
   timeline: typeof r.timeline === 'string' ? JSON.parse(r.timeline) : r.timeline
 });
 

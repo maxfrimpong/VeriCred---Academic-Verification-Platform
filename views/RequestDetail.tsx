@@ -1,5 +1,5 @@
 import React, { useState, useRef, ChangeEvent } from 'react';
-import { VerificationRequest, VerificationStatus, ViewProps } from '../types';
+import { VerificationRequest, VerificationStatus, ViewProps, User } from '../types';
 import StatusStepper from '../components/StatusStepper';
 import { Download, ShieldAlert, BadgeCheck, Building2, Calendar, FileText, AlertTriangle, CheckCircle, XCircle, RefreshCw, Mail, Upload, Sparkles, Loader2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
@@ -10,7 +10,7 @@ interface RequestDetailProps extends ViewProps {
   request?: VerificationRequest;
 }
 
-const RequestDetail: React.FC<RequestDetailProps> = ({ request, navigate, user, onUpdateRequest }) => {
+const RequestDetail: React.FC<RequestDetailProps> = ({ request, navigate, user, onUpdateRequest, allUsers = [] }) => {
   const [rejectReason, setRejectReason] = useState('');
   const [isAddingStandardNote, setIsAddingStandardNote] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -37,6 +37,7 @@ const RequestDetail: React.FC<RequestDetailProps> = ({ request, navigate, user, 
   const isOfficer = user?.role === 'VERIFICATION_OFFICER' || user?.role === 'ADMIN';
   const isClientOwner = user?.id === request.clientId;
   const isFinalized = request.status === VerificationStatus.Verified || request.status === VerificationStatus.Rejected;
+  const clientUser = allUsers.find(u => u.id === request.clientId);
 
   // --- Client Re-upload Logic ---
 
@@ -196,6 +197,15 @@ const RequestDetail: React.FC<RequestDetailProps> = ({ request, navigate, user, 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
+      // Generate Report ID
+      const now = new Date();
+      const year = now.getFullYear();
+      const dateTime = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14); // YYYYMMDDHHMMSS
+      // Extract sequence from request ID "REQ-YYYY-NNN" or default 0001
+      const seqMatch = request.id.match(/-(\d+)$/);
+      const sequence = seqMatch ? seqMatch[1].padStart(4, '0') : '0001';
+      const reportId = `VFV-${year}:${dateTime}-${sequence}`;
+
       // --- Header ---
       doc.setFillColor(79, 70, 229); // Indigo 600
       doc.rect(0, 0, pageWidth, 40, 'F');
@@ -211,8 +221,8 @@ const RequestDetail: React.FC<RequestDetailProps> = ({ request, navigate, user, 
       doc.text("SECURE ACADEMIC VERIFICATION", 20, 32);
 
       // --- QR Code ---
-      // In a real app, this URL would point to a public verification page
-      const verificationUrl = `${window.location.origin}/verify/${request.id}`;
+      // Direct deep link to this request view
+      const verificationUrl = `${window.location.origin}${window.location.pathname}?view=request-detail&id=${request.id}`;
       const qrDataUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, color: { dark: '#000000', light: '#ffffff' } });
       
       // White box for QR
@@ -227,8 +237,8 @@ const RequestDetail: React.FC<RequestDetailProps> = ({ request, navigate, user, 
       let yPos = 55;
       doc.setTextColor(15, 23, 42); // Slate 900
       doc.setFontSize(10);
-      doc.text(`REPORT ID: ${request.id}`, 20, yPos);
-      doc.text(`GENERATED: ${new Date().toLocaleDateString().toUpperCase()}`, pageWidth - 20, yPos, { align: 'right' });
+      doc.text(`REPORT ID: ${reportId}`, 20, yPos);
+      doc.text(`GENERATED: ${now.toLocaleDateString().toUpperCase()}`, pageWidth - 20, yPos, { align: 'right' });
       
       yPos += 8;
       doc.setDrawColor(226, 232, 240); // Slate 200
@@ -251,9 +261,35 @@ const RequestDetail: React.FC<RequestDetailProps> = ({ request, navigate, user, 
       doc.setFontSize(18);
       doc.text(request.status.toUpperCase(), 30, yPos + 18);
 
-      // --- Candidate Details ---
+      // --- Client Details ---
       yPos += 35;
-      doc.setTextColor(71, 85, 105); // Slate 600
+      doc.setTextColor(71, 85, 105);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text("REQUESTING CLIENT", 20, yPos);
+      
+      yPos += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139); 
+      doc.text("Client Name:", 20, yPos);
+      doc.text("Organization:", 80, yPos);
+      doc.text("Email:", 140, yPos);
+
+      yPos += 6;
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      
+      const cName = clientUser ? clientUser.name : request.clientName || 'N/A';
+      const cOrg = clientUser ? clientUser.organization : 'N/A';
+      const cEmail = clientUser ? clientUser.email : 'N/A';
+
+      doc.text(cName, 20, yPos);
+      doc.text(cOrg, 80, yPos);
+      doc.text(cEmail, 140, yPos);
+
+      // --- Candidate Details ---
+      yPos += 20;
+      doc.setTextColor(71, 85, 105); 
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text("CANDIDATE DETAILS", 20, yPos);
@@ -294,12 +330,10 @@ const RequestDetail: React.FC<RequestDetailProps> = ({ request, navigate, user, 
         doc.text(splitNote, 20, yPos);
         yPos += (splitNote.length * 5) + 10;
       } else {
-         // Add some spacing if no note, so summary isn't cramped against candidate details
          yPos += 10;
       }
 
       // --- AI Insights Summary ---
-      // Check for page overflow
       if (yPos > pageHeight - 50) {
           doc.addPage();
           yPos = 20;
@@ -339,7 +373,6 @@ const RequestDetail: React.FC<RequestDetailProps> = ({ request, navigate, user, 
       doc.text(isTampered ? "YES" : "NO", 115, yPos + 15);
 
       // --- Footer ---
-      // Draw footer on current page (usually first)
       doc.setFillColor(241, 245, 249); // Slate 100
       doc.rect(0, pageHeight - 15, pageWidth, 15, 'F');
       doc.setTextColor(148, 163, 184); // Slate 400
@@ -348,7 +381,7 @@ const RequestDetail: React.FC<RequestDetailProps> = ({ request, navigate, user, 
       doc.text("Generated by VerifiVUE Platform - Confidential Document", pageWidth / 2, pageHeight - 6, { align: 'center' });
 
       // Save
-      doc.save(`VerifiVUE_Report_${request.id}.pdf`);
+      doc.save(`VerifiVUE_Report_${reportId}.pdf`);
     } catch (e) {
       console.error("PDF Generation Error", e);
       alert("Failed to generate PDF report.");
