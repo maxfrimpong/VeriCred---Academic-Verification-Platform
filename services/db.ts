@@ -4,8 +4,16 @@ import { User, VerificationRequest, PackageDef, GlobalConfig } from '../types';
 // --- Types mapping helpers ---
 
 const mapUserFromDB = (u: any): User => ({
-  ...u,
-  credits: Number(u.credits || 0)
+  id: u.id,
+  name: u.name,
+  email: u.email,
+  role: u.role,
+  organization: u.organization,
+  password: u.password,
+  credits: Number(u.credits || 0),
+  subscriptionPlan: u.subscription_plan,
+  subscriptionExpiry: u.subscription_expiry,
+  status: u.status
 });
 
 const mapRequestFromDB = (r: any): VerificationRequest => ({
@@ -64,7 +72,19 @@ export const db = {
 
   async saveUser(user: User) {
     // In a real app, don't store passwords in plain text!
-    await supabase.from('users').upsert(user);
+    const payload = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      organization: user.organization,
+      password: user.password,
+      credits: user.credits,
+      subscription_plan: user.subscriptionPlan,
+      subscription_expiry: user.subscriptionExpiry,
+      status: user.status
+    };
+    await supabase.from('users').upsert(payload);
   },
 
   async deleteUser(userId: string) {
