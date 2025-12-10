@@ -33,7 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onSignOut, u
           <ShieldCheck className="w-6 h-6 text-white" />
         </div>
         <div>
-            <span className="text-xl font-bold tracking-tight block">VeriCred</span>
+            <span className="text-xl font-bold tracking-tight block">VerifiVUE</span>
             <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">{getRoleLabel()}</span>
         </div>
       </div>

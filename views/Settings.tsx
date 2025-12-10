@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { ViewProps, User, Role, PaymentGateway } from '../types';
-import { User as UserIcon, Bell, Shield, Mail, Building, Save, Users, Plus, Edit2, Trash2, X, Check, Lock, Smartphone, LogOut, CreditCard, Ban, Undo, CheckCircle, Search } from 'lucide-react';
+import { User as UserIcon, Bell, Shield, Mail, Building, Save, Users, Plus, Edit2, Trash2, X, Check, Lock, Smartphone, LogOut, CreditCard, Ban, Undo, CheckCircle, Search, RefreshCw } from 'lucide-react';
 
-const Settings: React.FC<ViewProps> = ({ 
+interface SettingsProps extends ViewProps {
+    refreshUsers?: () => void;
+}
+
+const Settings: React.FC<SettingsProps> = ({ 
     navigate, user, allUsers = [], onAddUser, onEditUser, onDeleteUser, onToggleUserStatus,
-    paymentConfig, onUpdatePaymentConfig
+    paymentConfig, onUpdatePaymentConfig, refreshUsers
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'notifications' | 'security' | 'payments'>('profile');
   const isAdmin = user?.role === 'ADMIN';
@@ -12,6 +16,7 @@ const Settings: React.FC<ViewProps> = ({
   // User Management State
   const [isEditingUser, setIsEditingUser] = useState(false);
   const [editingUser, setEditingUser] = useState<Partial<User>>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Security State
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
@@ -42,6 +47,14 @@ const Settings: React.FC<ViewProps> = ({
         });
     }
     setIsEditingUser(true);
+  };
+
+  const handleRefreshUsers = async () => {
+      if (refreshUsers) {
+          setIsRefreshing(true);
+          await refreshUsers();
+          setTimeout(() => setIsRefreshing(false), 500);
+      }
   };
 
   const handleSaveUser = (e: React.FormEvent) => {
@@ -317,12 +330,21 @@ const Settings: React.FC<ViewProps> = ({
                                 <Users className="w-5 h-5 text-indigo-600" />
                                 User Management
                             </h2>
-                            <button 
-                                onClick={() => handleStartEdit()}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
-                            >
-                                <Plus className="w-4 h-4" /> Add User
-                            </button>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={handleRefreshUsers}
+                                    className="text-slate-500 hover:text-indigo-600 p-2 rounded-lg transition-colors hover:bg-slate-50"
+                                    title="Refresh List"
+                                >
+                                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                </button>
+                                <button 
+                                    onClick={() => handleStartEdit()}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                                >
+                                    <Plus className="w-4 h-4" /> Add User
+                                </button>
+                            </div>
                         </div>
                         
                         {allUsers.length === 0 ? (

@@ -31,10 +31,12 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
     user.subscriptionExpiry && 
     new Date(user.subscriptionExpiry) > new Date();
 
-  const hasCredits = (user?.credits || 0) > 0;
-  const canSubmit = hasEnterpriseAccess || hasCredits;
+  const isExempt = user?.role === 'ADMIN' || user?.role === 'VERIFICATION_OFFICER';
 
-  // Render Pricing if no credits
+  const hasCredits = (user?.credits || 0) > 0;
+  const canSubmit = hasEnterpriseAccess || hasCredits || isExempt;
+
+  // Render Pricing if no credits and not exempt
   if (!canSubmit && user?.role === 'CLIENT' && paymentConfig && onTopUp) {
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in">
@@ -181,7 +183,7 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
             </div>
             {/* Credit Display */}
             <div className="bg-indigo-50 px-4 py-2 rounded-lg text-indigo-700 text-sm font-medium border border-indigo-100">
-                {hasEnterpriseAccess ? 'Enterprise Plan Active' : `Credits Remaining: ${user?.credits}`}
+                {isExempt ? 'Official Access' : hasEnterpriseAccess ? 'Enterprise Plan Active' : `Credits Remaining: ${user?.credits}`}
             </div>
         </div>
       </div>
@@ -338,7 +340,7 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
                 className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center gap-2"
               >
                 <CheckCircle className="w-4 h-4" />
-                Submit Request (Uses 1 Credit)
+                {isExempt || hasEnterpriseAccess ? 'Submit Request' : 'Submit Request (Uses 1 Credit)'}
               </button>
             </div>
           </form>

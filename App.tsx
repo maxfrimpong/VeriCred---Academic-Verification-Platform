@@ -9,10 +9,8 @@ import AuditLog from './views/AuditLog';
 import Login from './views/Login';
 import { ViewState, VerificationRequest, VerificationStatus, User, Notification, PaymentConfig, PackageDef, Role } from './types';
 import { Bell, X, CheckCircle, AlertTriangle, ExternalLink } from 'lucide-react';
-import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './services/supabaseClient';
-import { createClient } from '@supabase/supabase-js';
 
-// Mock Initial Data - Used as fallback data for the dashboard if DB is empty
+// Mock Initial Data - Used as fallback data
 const INITIAL_REQUESTS: VerificationRequest[] = [
   {
     id: 'REQ-2024-001',
@@ -61,6 +59,39 @@ const INITIAL_REQUESTS: VerificationRequest[] = [
   },
 ];
 
+const INITIAL_USERS: User[] = [
+  {
+    id: 'u-admin',
+    name: 'System Admin',
+    email: 'admin@verifivue.com',
+    password: 'password', 
+    role: 'ADMIN',
+    organization: 'VerifiVUE HQ',
+    credits: 9999,
+    status: 'active'
+  },
+  {
+    id: 'u-officer',
+    name: 'Sarah Officer',
+    email: 'officer@verifivue.com',
+    password: 'password',
+    role: 'VERIFICATION_OFFICER',
+    organization: 'VerifiVUE Operations',
+    credits: 0,
+    status: 'active'
+  },
+  {
+    id: 'client-1',
+    name: 'TechGlobal Admin',
+    email: 'client@techglobal.com',
+    password: 'password',
+    role: 'CLIENT',
+    organization: 'TechGlobal Inc.',
+    credits: 15,
+    status: 'active'
+  }
+];
+
 const INITIAL_PAYMENT_CONFIG: PaymentConfig = {
     activeGateway: 'PAYSTACK',
     keys: {
@@ -75,128 +106,12 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [currentRequestId, setCurrentRequestId] = useState<string | undefined>();
   const [requests, setRequests] = useState<VerificationRequest[]>(INITIAL_REQUESTS);
-  const [allUsers, setAllUsers] = useState<User[]>([]); 
+  const [allUsers, setAllUsers] = useState<User[]>(INITIAL_USERS); 
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>(INITIAL_PAYMENT_CONFIG);
   
   // Notification State
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
-
-  // SUPABASE AUTH INTEGRATION
-  useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      }
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      } else {
-        setCurrentUser(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Helper to map DB profile to App User
-  const mapDbProfileToUser = (p: any): User => ({
-    id: p.id,
-    email: p.email,
-    name: p.name,
-    organization: p.organization,
-    role: p.role as Role,
-    credits: p.credits,
-    subscriptionPlan: p.subscription_plan,
-    subscriptionExpiry: p.subscription_expiry,
-    status: p.status || 'active'
-  });
-
-  // Fetch all users if Admin + Realtime Subscription
-  useEffect(() => {
-      if (currentUser?.role === 'ADMIN') {
-          fetchSystemUsers();
-
-          const channel = supabase.channel('realtime-profiles')
-              .on(
-                  'postgres_changes',
-                  { event: '*', schema: 'public', table: 'profiles' },
-                  (payload) => {
-                      if (payload.eventType === 'INSERT') {
-                          setAllUsers((prev) => [...prev, mapDbProfileToUser(payload.new)]);
-                      } else if (payload.eventType === 'UPDATE') {
-                          setAllUsers((prev) => prev.map((u) => u.id === payload.new.id ? mapDbProfileToUser(payload.new) : u));
-                      } else if (payload.eventType === 'DELETE') {
-                          setAllUsers((prev) => prev.filter((u) => u.id !== payload.old.id));
-                      }
-                  }
-              )
-              .subscribe();
-
-          return () => {
-              supabase.removeChannel(channel);
-          };
-      }
-  }, [currentUser?.role]);
-
-  const fetchUserProfile = async (userId: string) => {
-    // Fetch from profiles table for most up-to-date data
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-    
-    if (data && !error) {
-        if (data.status === 'suspended') {
-            alert("Your account has been suspended. Please contact support.");
-            await supabase.auth.signOut();
-            setCurrentUser(null);
-            return;
-        }
-        setCurrentUser(mapDbProfileToUser(data));
-    } else {
-        // Fallback to auth metadata if profile doesn't exist yet (race condition)
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) mapSessionUser(user);
-    }
-  };
-
-  const fetchSystemUsers = async () => {
-      const { data, error } = await supabase.from('profiles').select('*');
-      
-      if (error) {
-          console.error("Error fetching system users:", error.message || error);
-          return;
-      }
-      
-      if (data) {
-          const mappedUsers = data.map(mapDbProfileToUser);
-          setAllUsers(mappedUsers);
-      }
-  };
-
-  const mapSessionUser = (supabaseUser: any) => {
-    // Map Supabase User Metadata to App User Type
-    const metadata = supabaseUser.user_metadata || {};
-    const mappedUser: User = {
-      id: supabaseUser.id,
-      email: supabaseUser.email || '',
-      name: metadata.name || 'Supabase User',
-      organization: metadata.organization || 'Organization',
-      role: (metadata.role as Role) || 'CLIENT',
-      credits: metadata.credits || 0,
-      subscriptionPlan: metadata.subscriptionPlan,
-      subscriptionExpiry: metadata.subscriptionExpiry,
-      status: 'active'
-    };
-    setCurrentUser(mappedUser);
-  };
 
   const navigate = (view: ViewState, id?: string) => {
     setCurrentView(view);
@@ -205,36 +120,40 @@ const App: React.FC = () => {
     window.scrollTo(0,0);
   };
 
+  const handleLogin = (user: User) => {
+      setCurrentUser(user);
+      navigate('dashboard');
+  };
+
+  const handleSignOut = async () => {
+      setCurrentUser(null);
+      setCurrentView('dashboard');
+      setShowNotifications(false);
+  };
+
   const handleNewRequest = async (req: Omit<VerificationRequest, 'id' | 'clientId' | 'clientName'>) => {
     if (!currentUser) return;
     
-    // Deduct Credit if not Enterprise (Check for Enterprise validity)
+    // Check exemptions
+    const isExempt = currentUser.role === 'ADMIN' || currentUser.role === 'VERIFICATION_OFFICER';
+
+    // Deduct Credit if not Enterprise and not Exempt
     const isEnterprise = currentUser.subscriptionPlan === 'ENTERPRISE' && 
         currentUser.subscriptionExpiry && 
         new Date(currentUser.subscriptionExpiry) > new Date();
 
-    if (!isEnterprise) {
+    if (!isEnterprise && !isExempt) {
         if (currentUser.credits <= 0) {
             alert("Insufficient credits.");
             return;
         }
         
-        // Update user credits in Supabase (Profiles table)
+        // Update user credits locally
         const newCredits = currentUser.credits - 1;
-        
-        const { error } = await supabase
-            .from('profiles')
-            .update({ credits: newCredits })
-            .eq('id', currentUser.id);
-
-        if (error) {
-            console.error("Failed to update credits", error);
-            alert("Transaction failed. Please try again.");
-            return;
-        }
-
-        // Optimistic UI Update
         const updatedUser = { ...currentUser, credits: newCredits };
+        
+        // Update in allUsers list
+        setAllUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
         setCurrentUser(updatedUser);
     }
 
@@ -247,10 +166,10 @@ const App: React.FC = () => {
     };
     setRequests([newRequest, ...requests]);
 
-    // Notify (Local simulation of notification system)
+    // Notify
     const newNotif: Notification = {
         id: `n-${Date.now()}`,
-        userId: currentUser.id, // Notify self for demo
+        userId: currentUser.id, 
         title: 'Request Submitted',
         message: `Verification request for ${req.candidateName} submitted successfully.`,
         type: 'success',
@@ -267,202 +186,64 @@ const App: React.FC = () => {
     );
   };
 
-  // User Management Handlers
-  const handleAddUser = async (user: User) => {
-    if (!user.password) {
-        alert("Password is required to create a user.");
-        return;
-    }
-
-    try {
-        // 1. Create user in Supabase Auth using a temporary client (so we don't log out the admin)
-        const tempSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            auth: {
-                persistSession: false,
-                autoRefreshToken: false,
-                detectSessionInUrl: false
-            }
-        });
-
-        const { data, error } = await tempSupabase.auth.signUp({
-            email: user.email,
-            password: user.password,
-            options: {
-                data: {
-                    name: user.name,
-                    organization: user.organization,
-                    role: user.role,
-                    credits: user.credits || 0,
-                    subscriptionPlan: user.subscriptionPlan,
-                    subscriptionExpiry: user.subscriptionExpiry
-                }
-            }
-        });
-
-        if (error) throw error;
-
-        // 2. Explicitly create the profile record. 
-        // Although the DB trigger should handle this, doing it explicitly ensures the user appears 
-        // in the list immediately without race conditions, and works even if the trigger fails.
-        if (data.user) {
-            const profileData = {
-                id: data.user.id,
-                email: user.email,
-                name: user.name,
-                organization: user.organization,
-                role: user.role,
-                credits: user.credits || 0,
-                subscription_plan: user.subscriptionPlan,
-                subscription_expiry: user.subscriptionExpiry,
-                status: 'active'
-            };
-
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert(profileData);
-
-            if (profileError) {
-                console.error("Profile creation warning:", profileError.message || profileError);
-                // We don't throw here because the user was created in Auth, so the trigger might catch it.
-            } else {
-                 // Update local state immediately if upsert was successful
-                 setAllUsers(prev => {
-                     // check if exists
-                     if (prev.find(u => u.id === data.user!.id)) return prev;
-                     return [...prev, { ...user, id: data.user!.id, status: 'active' }];
-                 });
-            }
-
-            const newNotif: Notification = {
-                id: `n-${Date.now()}`,
-                userId: currentUser?.id || '',
-                title: 'User Created',
-                message: `User ${user.name} (${user.role}) has been successfully created.`,
-                type: 'success',
-                timestamp: new Date().toISOString(),
-                read: false
-            };
-            setNotifications(prev => [newNotif, ...prev]);
-        }
-
-    } catch (err: any) {
-        console.error("Failed to create user", err);
-        alert(`Error creating user: ${err.message}`);
+  // User Management Handlers (Local State)
+  const handleAddUser = (user: User) => {
+    const newUser = { ...user, id: `user-${Date.now()}`, status: 'active' as const };
+    setAllUsers(prev => [...prev, newUser]);
+    
+    // Auto login if it was a registration
+    if (!currentUser) {
+        handleLogin(newUser);
+    } else {
+        const newNotif: Notification = {
+            id: `n-${Date.now()}`,
+            userId: currentUser.id,
+            title: 'User Created',
+            message: `User ${user.name} (${user.role}) has been successfully created.`,
+            type: 'success',
+            timestamp: new Date().toISOString(),
+            read: false
+        };
+        setNotifications(prev => [newNotif, ...prev]);
     }
   };
 
-  const handleEditUser = async (updatedUser: User) => {
-    // Update the Profile Table directly
-    try {
-        const { error } = await supabase
-            .from('profiles')
-            .update({
-                name: updatedUser.name,
-                organization: updatedUser.organization,
-                role: updatedUser.role,
-                credits: updatedUser.credits,
-                subscription_plan: updatedUser.subscriptionPlan,
-                subscription_expiry: updatedUser.subscriptionExpiry,
-                status: updatedUser.status
-            })
-            .eq('id', updatedUser.id);
-
-        if (error) throw error;
-
-        // If editing self
-        if (currentUser?.id === updatedUser.id) {
-            setCurrentUser(updatedUser);
-        }
-    } catch (err: any) {
-        console.error("Error updating user", err);
-        alert("Failed to update user.");
+  const handleEditUser = (updatedUser: User) => {
+    setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    if (currentUser?.id === updatedUser.id) {
+        setCurrentUser(updatedUser);
     }
   };
 
-  const handleToggleUserStatus = async (userId: string, currentStatus?: string) => {
+  const handleToggleUserStatus = (userId: string, currentStatus?: string) => {
       const newStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
-      try {
-        const { error } = await supabase
-            .from('profiles')
-            .update({ status: newStatus })
-            .eq('id', userId);
-
-        if (error) throw error;
-        
-        // Optimistic update
-        setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
-        
-      } catch (err: any) {
-          console.error("Error updating status", err);
-          alert("Failed to change user status.");
-      }
+      setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    // Note: This only deletes from Profiles table. 
-    // To delete from Auth, you need a backend function with Service Role.
-    try {
-        const { error } = await supabase.from('profiles').delete().eq('id', userId);
-        if (error) throw error;
-        // Realtime subscription handles list update
-    } catch (err: any) {
-        console.error("Delete failed", err);
-        alert("Failed to delete user profile.");
-    }
+  const handleDeleteUser = (userId: string) => {
+     setAllUsers(prev => prev.filter(u => u.id !== userId));
   };
 
-  const handleLogin = (user: User) => {}; 
-  
-  const handleSignOut = async () => {
-    try {
-        await supabase.auth.signOut();
-    } catch (error) {
-        console.error("Error signing out:", error);
-    } finally {
-        setCurrentUser(null);
-        setCurrentView('dashboard');
-        setShowNotifications(false);
-    }
-  };
-
-  const handleTopUp = async (pkg: PackageDef) => {
+  const handleTopUp = (pkg: PackageDef) => {
     if (!currentUser) return;
 
-    let updates: any = {};
+    let updates: Partial<User> = {};
 
     if (pkg.id === 'ENTERPRISE') {
         const nextYear = new Date();
         nextYear.setFullYear(nextYear.getFullYear() + 1);
-        updates.subscription_plan = 'ENTERPRISE';
-        updates.subscription_expiry = nextYear.toISOString();
+        updates.subscriptionPlan = 'ENTERPRISE';
+        updates.subscriptionExpiry = nextYear.toISOString();
     } else {
         const currentCredits = currentUser.credits || 0;
         const addCredits = typeof pkg.credits === 'number' ? pkg.credits : 0;
         updates.credits = currentCredits + addCredits;
-        updates.subscription_plan = pkg.id;
-        updates.subscription_expiry = null;
+        updates.subscriptionPlan = pkg.id as any;
+        updates.subscriptionExpiry = undefined;
     }
 
-    // Update Profile
-    const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', currentUser.id);
-
-    if (error) {
-        console.error("TopUp Failed", error);
-        alert("Purchase failed. Please try again.");
-        return;
-    }
-
-    // Optimistic UI update
-    // Map db keys back to app keys
-    const appUpdates = {
-        subscriptionPlan: updates.subscription_plan,
-        subscriptionExpiry: updates.subscription_expiry,
-        credits: updates.credits
-    };
-    const updatedUser = { ...currentUser, ...appUpdates };
+    const updatedUser = { ...currentUser, ...updates };
+    setAllUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
     setCurrentUser(updatedUser);
     
     const newNotif: Notification = {
@@ -517,7 +298,7 @@ const App: React.FC = () => {
     return (
         <Login 
             onLogin={handleLogin} 
-            availableUsers={allUsers} // Not really used in Supabase mode
+            availableUsers={allUsers}
             onRegister={handleAddUser} 
         />
     );
