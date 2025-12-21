@@ -1,10 +1,6 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { AIAnalysisResult } from "../types";
 
-const apiKey = process.env.API_KEY || '';
-
-const ai = new GoogleGenAI({ apiKey });
-
 const analysisSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -20,14 +16,18 @@ const analysisSchema: Schema = {
 };
 
 export const analyzeDocument = async (base64Image: string): Promise<AIAnalysisResult> => {
+  // Use a safe check to prevent ReferenceErrors in environments without the process shim
+  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
+  const ai = new GoogleGenAI({ apiKey });
+
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
       contents: {
         parts: [
           {
             inlineData: {
-              mimeType: "image/png", // We will assume PNG/JPEG for simplicity in this demo
+              mimeType: "image/png", 
               data: base64Image
             }
           },
@@ -48,7 +48,7 @@ export const analyzeDocument = async (base64Image: string): Promise<AIAnalysisRe
     return JSON.parse(text) as AIAnalysisResult;
   } catch (error) {
     console.error("Gemini Analysis Failed:", error);
-    // Fallback for demo purposes if API key is invalid or fails
+    // Fallback for demo purposes
     return {
       extractedName: "",
       extractedInstitution: "",
