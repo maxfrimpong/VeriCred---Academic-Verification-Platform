@@ -8,7 +8,7 @@ import Clients from './views/Clients';
 import AuditLog from './views/AuditLog';
 import Login from './views/Login';
 import { ViewState, VerificationRequest, VerificationStatus, User, Notification, PaymentConfig, PackageDef, GlobalConfig } from './types';
-import { Bell, X, CheckCircle, AlertTriangle, ExternalLink, Loader2 } from 'lucide-react';
+import { Bell, X, CheckCircle, AlertTriangle, ExternalLink, Loader2, Menu } from 'lucide-react';
 import { db } from './services/db';
 
 // Mock Initial Data - Used as fallback data and Seeding
@@ -148,6 +148,7 @@ const INACTIVITY_LIMIT_MS = 10 * 60 * 1000; // 10 Minutes
 
 const App: React.FC = () => {
   const [loadingData, setLoadingData] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Initialize currentUser from LocalStorage if available
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -225,6 +226,7 @@ const App: React.FC = () => {
   const handleSignOut = useCallback(() => {
       setCurrentUser(null);
       localStorage.removeItem(USER_STORAGE_KEY);
+      setIsSidebarOpen(false);
       
       // Clean URL params on logout
       const url = new URL(window.location.href);
@@ -512,11 +514,30 @@ const App: React.FC = () => {
         onSignOut={handleSignOut}
         user={currentUser}
         globalConfig={globalConfig}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
+
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden animate-in fade-in"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
       
-      <main className="flex-1 ml-64 p-8 pt-20 relative flex flex-col min-h-screen">
+      <main className="flex-1 ml-0 md:ml-64 p-4 md:p-8 pt-20 relative flex flex-col min-h-screen transition-all duration-300">
         {/* Top Header Bar with Notifications */}
-        <div className="fixed top-0 right-0 left-64 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 z-30 flex justify-end items-center px-8 shadow-sm">
+        <div className="fixed top-0 right-0 left-0 md:left-64 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 z-30 flex justify-between md:justify-end items-center px-4 md:px-8 shadow-sm transition-all duration-300">
+             
+             {/* Mobile Menu Toggle */}
+             <button 
+                className="md:hidden text-slate-500 hover:text-slate-900"
+                onClick={() => setIsSidebarOpen(true)}
+             >
+                <Menu className="w-6 h-6" />
+             </button>
+
              <div className="relative">
                 <button 
                     onClick={() => setShowNotifications(!showNotifications)}
@@ -530,7 +551,7 @@ const App: React.FC = () => {
 
                 {/* Notification Dropdown */}
                 {showNotifications && (
-                    <div className="absolute right-0 top-12 w-96 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
+                    <div className="absolute right-0 top-12 w-80 md:w-96 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
                         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                             <h3 className="font-semibold text-slate-900">Notifications</h3>
                             <div className="flex gap-2">
