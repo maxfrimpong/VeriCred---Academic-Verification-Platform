@@ -178,10 +178,8 @@ const App: React.FC = () => {
   useEffect(() => {
     const initData = async () => {
         try {
-            // Attempt to seed first if tables are empty (helps integration)
             await db.seedIfNeeded(INITIAL_REQUESTS, MOCK_DB_USERS, INITIAL_PACKAGES, INITIAL_GLOBAL_CONFIG);
 
-            // Parallel fetch
             const [fetchedConfig, fetchedUsers, fetchedPackages, fetchedRequests] = await Promise.all([
                 db.getConfig(),
                 db.getUsers(),
@@ -194,7 +192,6 @@ const App: React.FC = () => {
             if (fetchedPackages) setPackages(fetchedPackages);
             if (fetchedRequests) setRequests(fetchedRequests);
 
-            // Handle Deep Linking
             const params = new URLSearchParams(window.location.search);
             const viewParam = params.get('view') as ViewState;
             const idParam = params.get('id');
@@ -206,7 +203,6 @@ const App: React.FC = () => {
 
         } catch (error) {
             console.error("Failed to load data from Supabase, using mock fallback.", error);
-            // We stick to the INITIAL_ constants which are already in state
         } finally {
             setLoadingData(false);
         }
@@ -228,7 +224,6 @@ const App: React.FC = () => {
       localStorage.removeItem(USER_STORAGE_KEY);
       setIsSidebarOpen(false);
       
-      // Clean URL params on logout
       const url = new URL(window.location.href);
       url.searchParams.delete('view');
       url.searchParams.delete('id');
@@ -254,18 +249,14 @@ const App: React.FC = () => {
         inactivityTimer = setTimeout(logoutDueToInactivity, INACTIVITY_LIMIT_MS);
     };
 
-    // Activity events to listen for
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
     
-    // Attach listeners
     events.forEach(event => {
         document.addEventListener(event, resetTimer);
     });
 
-    // Start initial timer
     resetTimer();
 
-    // Cleanup listeners
     return () => {
         if (inactivityTimer) clearTimeout(inactivityTimer);
         events.forEach(event => {
@@ -281,7 +272,6 @@ const App: React.FC = () => {
     setCurrentView(view);
     if (id) setCurrentRequestId(id);
     
-    // Update URL without reloading
     const url = new URL(window.location.href);
     url.searchParams.set('view', view);
     if (id) url.searchParams.set('id', id);
@@ -295,10 +285,8 @@ const App: React.FC = () => {
   const handleNewRequest = async (req: Omit<VerificationRequest, 'id' | 'clientId' | 'clientName'>) => {
     if (!currentUser) return;
     
-    // Check exemptions
     const isExempt = currentUser.role === 'ADMIN' || currentUser.role === 'VERIFICATION_OFFICER';
 
-    // Deduct Credit if not Enterprise and not Exempt
     const isEnterprise = currentUser.subscriptionPlan === 'ENTERPRISE' && 
         currentUser.subscriptionExpiry && 
         new Date(currentUser.subscriptionExpiry) > new Date();
@@ -309,15 +297,13 @@ const App: React.FC = () => {
             return;
         }
         
-        // Update user credits locally & DB
         const newCredits = currentUser.credits - 1;
         const updatedUser = { ...currentUser, credits: newCredits };
         
         setAllUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
         setCurrentUser(updatedUser);
-        // Update storage as well for credit persistence across reloads
         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser));
-        db.saveUser(updatedUser); // Sync to DB
+        db.saveUser(updatedUser); 
     }
 
     const newId = `REQ-2024-${String(requests.length + 1).padStart(3, '0')}`;
@@ -329,9 +315,8 @@ const App: React.FC = () => {
     };
     
     setRequests([newRequest, ...requests]);
-    db.saveRequest(newRequest); // Sync to DB
+    db.saveRequest(newRequest); 
 
-    // Notify
     const newNotif: Notification = {
         id: `n-${Date.now()}`,
         userId: currentUser.id, 
@@ -349,13 +334,13 @@ const App: React.FC = () => {
     setRequests(prevRequests => 
       prevRequests.map(req => req.id === updatedRequest.id ? updatedRequest : req)
     );
-    db.saveRequest(updatedRequest); // Sync to DB
+    db.saveRequest(updatedRequest); 
   };
 
   const handleAddUser = (user: User) => {
     const newUser = { ...user, id: `user-${Date.now()}`, status: 'active' as const };
     setAllUsers(prev => [...prev, newUser]);
-    db.saveUser(newUser); // Sync to DB
+    db.saveUser(newUser); 
     
     if (currentUser) {
         const newNotif: Notification = {
@@ -373,7 +358,7 @@ const App: React.FC = () => {
 
   const handleEditUser = (updatedUser: User) => {
     setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-    db.saveUser(updatedUser); // Sync to DB
+    db.saveUser(updatedUser); 
     if (currentUser?.id === updatedUser.id) {
         setCurrentUser(updatedUser);
         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser));
@@ -385,32 +370,31 @@ const App: React.FC = () => {
       const updatedUser = allUsers.find(u => u.id === userId);
       if (updatedUser) {
           const newUser = { ...updatedUser, status: newStatus };
-          handleEditUser(newUser as User); // Uses DB sync inside
+          handleEditUser(newUser as User); 
       }
   };
 
   const handleDeleteUser = (userId: string) => {
      setAllUsers(prev => prev.filter(u => u.id !== userId));
-     db.deleteUser(userId); // Sync to DB
+     db.deleteUser(userId); 
   };
 
-  // Package Management Handlers
   const handleAddPackage = (pkg: PackageDef) => {
       setPackages(prev => [...prev, pkg]);
-      db.savePackage(pkg); // Sync to DB
+      db.savePackage(pkg); 
   };
   const handleUpdatePackage = (pkg: PackageDef) => {
       setPackages(prev => prev.map(p => p.id === pkg.id ? pkg : p));
-      db.savePackage(pkg); // Sync to DB
+      db.savePackage(pkg); 
   };
   const handleDeletePackage = (pkgId: string) => {
       setPackages(prev => prev.filter(p => p.id !== pkgId));
-      db.deletePackage(pkgId); // Sync to DB
+      db.deletePackage(pkgId); 
   };
 
   const handleUpdateGlobalConfig = (config: GlobalConfig) => {
       setGlobalConfig(config);
-      db.saveConfig(config); // Sync to DB
+      db.saveConfig(config); 
   };
 
   const handleTopUp = (pkg: PackageDef) => {
@@ -421,7 +405,7 @@ const App: React.FC = () => {
     if (pkg.credits === 'UNLIMITED') {
         const nextYear = new Date();
         nextYear.setFullYear(nextYear.getFullYear() + 1);
-        updates.subscriptionPlan = pkg.id; // use package ID dynamically
+        updates.subscriptionPlan = pkg.id; 
         updates.subscriptionExpiry = nextYear.toISOString();
     } else {
         const currentCredits = currentUser.credits || 0;
@@ -434,8 +418,8 @@ const App: React.FC = () => {
     const updatedUser = { ...currentUser, ...updates };
     setAllUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
     setCurrentUser(updatedUser);
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser)); // Update persistence
-    db.saveUser(updatedUser); // Sync to DB
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser)); 
+    db.saveUser(updatedUser); 
     
     const newNotif: Notification = {
         id: `n-${Date.now()}`,
@@ -507,7 +491,7 @@ const App: React.FC = () => {
   const visibleRequests = getVisibleRequests();
 
   return (
-    <div className="flex min-h-screen bg-slate-50 relative">
+    <div className="flex min-h-screen bg-slate-50 relative overflow-x-hidden">
       <Sidebar 
         currentView={currentView} 
         onNavigate={navigate} 
@@ -526,17 +510,20 @@ const App: React.FC = () => {
         />
       )}
       
-      <main className="flex-1 ml-0 md:ml-64 p-4 md:p-8 pt-20 relative flex flex-col min-h-screen transition-all duration-300">
+      {/* pt-24 ensures header doesn't overlap view content on mobile headers */}
+      <main className="flex-1 ml-0 md:ml-64 p-4 md:p-8 pt-24 md:pt-20 relative flex flex-col min-h-screen transition-all duration-300">
         {/* Top Header Bar with Notifications */}
-        <div className="fixed top-0 right-0 left-0 md:left-64 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 z-30 flex justify-between md:justify-end items-center px-4 md:px-8 shadow-sm transition-all duration-300">
+        <div className="fixed top-0 right-0 left-0 md:left-64 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 z-30 flex justify-between items-center px-4 md:px-8 shadow-sm transition-all duration-300">
              
              {/* Mobile Menu Toggle */}
              <button 
-                className="md:hidden text-slate-500 hover:text-slate-900"
+                className="md:hidden text-slate-500 hover:text-slate-900 p-2 -ml-2"
                 onClick={() => setIsSidebarOpen(true)}
              >
                 <Menu className="w-6 h-6" />
              </button>
+
+             <div className="flex-1"></div>
 
              <div className="relative">
                 <button 
@@ -551,7 +538,7 @@ const App: React.FC = () => {
 
                 {/* Notification Dropdown */}
                 {showNotifications && (
-                    <div className="absolute right-0 top-12 w-80 md:w-96 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
+                    <div className="absolute right-0 top-12 w-[85vw] sm:w-80 md:w-96 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
                         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                             <h3 className="font-semibold text-slate-900">Notifications</h3>
                             <div className="flex gap-2">
@@ -568,7 +555,7 @@ const App: React.FC = () => {
                                 </button>
                             </div>
                         </div>
-                        <div className="max-h-[400px] overflow-y-auto">
+                        <div className="max-h-[60vh] md:max-h-[400px] overflow-y-auto">
                             {myNotifications.length === 0 ? (
                                 <div className="p-8 text-center text-slate-500">
                                     <Bell className="w-8 h-8 mx-auto mb-2 text-slate-300" />
@@ -583,21 +570,21 @@ const App: React.FC = () => {
                                             className={`p-4 hover:bg-slate-50 cursor-pointer transition-colors flex gap-3 ${n.read ? 'opacity-60' : 'bg-indigo-50/30'}`}
                                         >
                                             <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${n.read ? 'bg-slate-300' : 'bg-indigo-500'}`} />
-                                            <div className="flex-1">
+                                            <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-start mb-1">
-                                                    <span className={`text-sm font-medium ${n.read ? 'text-slate-700' : 'text-slate-900'}`}>
+                                                    <span className={`text-sm font-medium truncate ${n.read ? 'text-slate-700' : 'text-slate-900'}`}>
                                                         {n.title}
                                                     </span>
                                                     <span className="text-[10px] text-slate-400 whitespace-nowrap ml-2">
                                                         {new Date(n.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                                     </span>
                                                 </div>
-                                                <p className="text-xs text-slate-500 leading-relaxed mb-1.5">{n.message}</p>
+                                                <p className="text-xs text-slate-500 leading-relaxed mb-1.5 break-words">{n.message}</p>
                                                 {n.type === 'success' && <div className="flex items-center text-[10px] text-green-600 font-medium"><CheckCircle className="w-3 h-3 mr-1"/> Success</div>}
                                                 {n.type === 'error' && <div className="flex items-center text-[10px] text-red-600 font-medium"><AlertTriangle className="w-3 h-3 mr-1"/> Action Needed</div>}
                                                 {n.type === 'warning' && <div className="flex items-center text-[10px] text-amber-600 font-medium"><AlertTriangle className="w-3 h-3 mr-1"/> Attention</div>}
                                             </div>
-                                            {n.relatedRequestId && <ExternalLink className="w-3 h-3 text-slate-300 mt-1" />}
+                                            {n.relatedRequestId && <ExternalLink className="w-3 h-3 text-slate-300 mt-1 shrink-0" />}
                                         </div>
                                     ))}
                                 </div>
@@ -609,7 +596,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Content Area */}
-        <div className="max-w-7xl mx-auto flex-1 w-full">
+        <div className="max-w-7xl mx-auto flex-1 w-full relative">
           {currentView === 'dashboard' && (
             <Dashboard 
               navigate={navigate} 
@@ -683,7 +670,7 @@ const App: React.FC = () => {
         </div>
         
         {/* Global Copyright Footer */}
-        <footer className="mt-auto py-6 text-center border-t border-slate-100 text-slate-400 text-sm">
+        <footer className="mt-auto py-6 text-center border-t border-slate-100 text-slate-400 text-sm px-4">
             {globalConfig.copyrightText}
         </footer>
       </main>

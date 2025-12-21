@@ -77,17 +77,14 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
       const selectedFile = e.target.files[0];
       setFile(selectedFile);
       
-      // Create preview (local only)
       const objectUrl = URL.createObjectURL(selectedFile);
       setPreview(objectUrl);
 
-      // Convert to base64 for Gemini AND Storage
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64String = reader.result as string;
-        setDocumentBase64(base64String); // Store for submission
+        setDocumentBase64(base64String); 
 
-        // Remove data URL prefix for API
         const base64Data = base64String.split(',')[1];
         
         setIsAnalyzing(true);
@@ -116,7 +113,6 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Determine initial status based on AI Analysis
     let initialStatus = VerificationStatus.Processing;
     let step2Status: 'current' | 'error' | 'completed' = 'current';
     let step2Desc = 'AI-powered initial document verification.';
@@ -127,7 +123,6 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
             step2Status = 'error';
             step2Desc = 'AI Verification Warning: Low confidence or tampering detected. Manual review required.';
         } else {
-            // High confidence
             step2Desc = `AI Verification Passed (${aiResult.confidenceScore}%). Pending officer approval.`;
         }
     }
@@ -140,7 +135,7 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
       status: initialStatus,
       submissionDate: new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
-      documentUrl: documentBase64 || undefined, // Use Base64 string for persistence
+      documentUrl: documentBase64 || undefined, 
       aiAnalysis: aiResult,
       timeline: [
         {
@@ -183,13 +178,12 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
         >
           ← Back to Dashboard
         </button>
-        <div className="flex justify-between items-end">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
             <div>
                 <h1 className="text-3xl font-bold text-slate-900">New Verification Request</h1>
                 <p className="text-slate-500 mt-2">Upload a document to auto-fill details or enter them manually.</p>
             </div>
-            {/* Credit Display */}
-            <div className="bg-indigo-50 px-4 py-2 rounded-lg text-indigo-700 text-sm font-medium border border-indigo-100">
+            <div className="bg-indigo-50 px-4 py-2 rounded-lg text-indigo-700 text-sm font-medium border border-indigo-100 whitespace-nowrap">
                 {isExempt ? 'Official Access' : hasEnterpriseAccess ? 'Enterprise Plan Active' : `Credits Remaining: ${user?.credits}`}
             </div>
         </div>
@@ -335,17 +329,17 @@ const NewRequest: React.FC<NewRequestProps> = ({ navigate, onSubmit, user, payme
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row justify-end gap-3">
               <button 
                 type="button"
                 onClick={() => navigate('dashboard')}
-                className="px-6 py-2.5 text-slate-600 font-medium hover:bg-slate-50 rounded-lg transition-colors"
+                className="w-full sm:w-auto px-6 py-2.5 text-slate-600 font-medium hover:bg-slate-50 rounded-lg transition-colors"
               >
                 Cancel
               </button>
               <button 
                 type="submit"
-                className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center gap-2"
+                className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2"
               >
                 <CheckCircle className="w-4 h-4" />
                 {isExempt || hasEnterpriseAccess ? 'Submit Request' : 'Submit Request (Uses 1 Credit)'}

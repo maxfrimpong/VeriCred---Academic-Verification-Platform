@@ -33,8 +33,6 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate, user, allUser
   const currencySymbol = globalConfig?.currency === 'GHS' ? '₵' : '$';
 
   // --- REVENUE CALCULATION MOCK LOGIC ---
-  // Since we don't have a transaction table, we simulate revenue based on users having a subscription plan.
-  // We randomly assign a "purchase date" to each user with a plan for the sake of the chart.
   const revenueData = useMemo(() => {
       if (!isAdmin) return [];
 
@@ -48,11 +46,10 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate, user, allUser
           const d = new Date(today);
           d.setDate(d.getDate() - i);
           const label = days > 60 
-            ? d.toLocaleDateString(undefined, { month: 'short' }) // Group by month for YTD (simplified here to daily for demo)
+            ? d.toLocaleDateString(undefined, { month: 'short' }) 
             : d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
           
-          // Simplified: In a real YTD, we'd aggregate by month, but keeping it simple for now.
-          if (days > 90 && i % 30 !== 0) continue; // Skip days for long periods to clean up axis
+          if (days > 90 && i % 30 !== 0) continue; 
 
           data.push({ name: label, revenue: 0 });
       }
@@ -62,21 +59,18 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate, user, allUser
           if (u.role === 'CLIENT' && u.subscriptionPlan) {
               const pkg = packages.find(p => p.id === u.subscriptionPlan);
               if (pkg) {
-                  // Deterministically fake a date based on user ID char code so it doesn't change on render
                   const fakeDayOffset = (u.id.charCodeAt(u.id.length - 1) * idx) % days; 
                   const d = new Date(today);
                   d.setDate(d.getDate() - fakeDayOffset);
                   
-                  // Find bucket
                   const label = days > 60 
                      ? d.toLocaleDateString(undefined, { month: 'short' })
                      : d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
                      
-                  const bucket = data.find(item => item.name === label); // Simple find, real world uses better matching
+                  const bucket = data.find(item => item.name === label); 
                   if (bucket) {
                       bucket.revenue += pkg.price;
                   } else if(data.length > 0) {
-                      // fallback for YTD simplification logic above
                       data[Math.floor(Math.random() * data.length)].revenue += pkg.price;
                   }
               }
@@ -94,7 +88,6 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate, user, allUser
           const count = allUsers.filter(u => u.role === 'CLIENT' && u.subscriptionPlan === pkg.id).length;
           return { name: pkg.name, value: count };
       });
-      // Add 'No Plan' or 'Pay As You Go' (users with credits but no subscription ID matches or ID is not in package list)
       const payg = allUsers.filter(u => u.role === 'CLIENT' && (!u.subscriptionPlan || !packages.find(p => p.id === u.subscriptionPlan))).length;
       if (payg > 0) stats.push({ name: 'Pay As You Go', value: payg });
       return stats;
@@ -131,7 +124,7 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate, user, allUser
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">
             {isAdmin ? 'Admin Dashboard' : 'Client Dashboard'}
@@ -144,7 +137,7 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate, user, allUser
         </div>
         <button 
           onClick={() => navigate('new-request')}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-lg shadow-indigo-200 transition-all flex items-center gap-2"
+          className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2"
         >
           <ArrowUpRight className="w-4 h-4" />
           New Verification
@@ -206,15 +199,15 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate, user, allUser
       {isAdmin && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                     <div>
                         <h2 className="text-lg font-bold text-slate-900">Subscription Revenue</h2>
                         <div className="text-2xl font-bold text-emerald-600 mt-1">{currencySymbol}{totalRevenue.toLocaleString()}</div>
                     </div>
-                    <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg">
-                        <button onClick={() => setRevenueFilter('7d')} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${revenueFilter === '7d' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>7 Days</button>
-                        <button onClick={() => setRevenueFilter('30d')} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${revenueFilter === '30d' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>30 Days</button>
-                        <button onClick={() => setRevenueFilter('ytd')} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${revenueFilter === 'ytd' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>YTD</button>
+                    <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg w-full sm:w-auto overflow-x-auto">
+                        <button onClick={() => setRevenueFilter('7d')} className={`flex-1 sm:flex-none px-3 py-1 rounded-md text-xs font-medium transition-colors ${revenueFilter === '7d' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>7 Days</button>
+                        <button onClick={() => setRevenueFilter('30d')} className={`flex-1 sm:flex-none px-3 py-1 rounded-md text-xs font-medium transition-colors ${revenueFilter === '30d' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>30 Days</button>
+                        <button onClick={() => setRevenueFilter('ytd')} className={`flex-1 sm:flex-none px-3 py-1 rounded-md text-xs font-medium transition-colors ${revenueFilter === 'ytd' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>YTD</button>
                     </div>
                 </div>
                 <div className="flex-1 min-h-[250px]">
@@ -260,15 +253,15 @@ const Dashboard: React.FC<DashboardProps> = ({ requests, navigate, user, allUser
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Table */}
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+          <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h2 className="text-lg font-bold text-slate-900">Recent Requests</h2>
-            <div className="flex gap-2">
-              <div className="relative">
+            <div className="flex gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-none">
                 <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
                 <input 
                   type="text" 
                   placeholder="Search..." 
-                  className="pl-9 pr-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-48"
+                  className="pl-9 pr-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-48"
                 />
               </div>
               <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg">
