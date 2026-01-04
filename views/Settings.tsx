@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ViewProps, User, Role, PaymentGateway, PackageDef, GlobalConfig } from '../types';
-import { User as UserIcon, Bell, Shield, Mail, Building, Save, Users, Plus, Edit2, Trash2, X, Check, Lock, Smartphone, LogOut, CreditCard, Ban, Undo, CheckCircle, Search, RefreshCw, LayoutTemplate, Package, Coins } from 'lucide-react';
+import { User as UserIcon, Bell, Shield, Mail, Building, Save, Users, Plus, Edit2, Trash2, X, Check, Lock, Smartphone, LogOut, CreditCard, Ban, Undo, CheckCircle, Search, RefreshCw, LayoutTemplate, Package, Coins, Link as LinkIcon, Copy } from 'lucide-react';
 
 interface SettingsProps extends ViewProps {
     refreshUsers?: () => void;
@@ -49,6 +49,14 @@ const Settings: React.FC<SettingsProps> = ({
   const [pConfig, setPConfig] = useState(paymentConfig);
 
   const currencySymbol = gConfig.currency === 'GHS' ? '₵' : '$';
+
+  // Generated Webhook URL
+  const webhookUrl = `${window.location.origin}/api/webhook/paystack`;
+
+  const handleCopyWebhook = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    alert("Webhook URL copied to clipboard!");
+  };
 
   const handleStartEdit = (userToEdit?: User) => {
     if (userToEdit) {
@@ -562,6 +570,26 @@ const Settings: React.FC<SettingsProps> = ({
                           <p className="text-xs text-slate-500 mt-1">This gateway will be presented to clients during checkout.</p>
                       </div>
 
+                      {/* Webhook Section */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <LinkIcon className="w-4 h-4 text-indigo-600" />
+                                Payment Webhook URL
+                            </h3>
+                            <button 
+                                onClick={handleCopyWebhook}
+                                className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                            >
+                                <Copy className="w-3 h-3" /> Copy Link
+                            </button>
+                        </div>
+                        <p className="text-xs text-slate-500 mb-3">Copy this URL to your payment gateway dashboard to receive real-time payment updates.</p>
+                        <code className="block bg-white border border-slate-200 p-2 rounded text-[11px] font-mono text-slate-700 break-all">
+                            {webhookUrl}
+                        </code>
+                      </div>
+
                       <div className="border-t border-slate-100 pt-6 space-y-4">
                           <h3 className="font-semibold text-slate-900">Paystack Settings</h3>
                           <div>
@@ -571,6 +599,7 @@ const Settings: React.FC<SettingsProps> = ({
                                 value={pConfig.keys.paystack.publicKey}
                                 onChange={(e) => setPConfig({...pConfig, keys: { ...pConfig.keys, paystack: { ...pConfig.keys.paystack, publicKey: e.target.value }}})}
                                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" 
+                                placeholder="pk_live_..."
                               />
                           </div>
                           <div>
@@ -580,6 +609,7 @@ const Settings: React.FC<SettingsProps> = ({
                                 value={pConfig.keys.paystack.secret}
                                 onChange={(e) => setPConfig({...pConfig, keys: { ...pConfig.keys, paystack: { ...pConfig.keys.paystack, secret: e.target.value }}})}
                                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" 
+                                placeholder="sk_live_..."
                               />
                           </div>
                       </div>

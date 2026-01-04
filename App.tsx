@@ -224,10 +224,15 @@ const App: React.FC = () => {
       localStorage.removeItem(USER_STORAGE_KEY);
       setIsSidebarOpen(false);
       
-      const url = new URL(window.location.href);
-      url.searchParams.delete('view');
-      url.searchParams.delete('id');
-      window.history.pushState({}, '', url);
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('view');
+        url.searchParams.delete('id');
+        window.history.pushState({}, '', url);
+      } catch (e) {
+        // Fallback for environments where pushState fails (e.g. Blob URLs)
+        console.warn("Could not update history state on sign out.");
+      }
 
       setCurrentView('dashboard');
       setShowNotifications(false);
@@ -272,11 +277,16 @@ const App: React.FC = () => {
     setCurrentView(view);
     if (id) setCurrentRequestId(id);
     
-    const url = new URL(window.location.href);
-    url.searchParams.set('view', view);
-    if (id) url.searchParams.set('id', id);
-    else url.searchParams.delete('id');
-    window.history.pushState({}, '', url);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', view);
+      if (id) url.searchParams.set('id', id);
+      else url.searchParams.delete('id');
+      window.history.pushState({}, '', url);
+    } catch (e) {
+      // Fallback for environments where pushState fails (e.g. Blob URLs)
+      console.warn("Could not update history state on navigation.");
+    }
 
     setShowNotifications(false);
     window.scrollTo(0,0);

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { PackageDef, PaymentConfig } from '../types';
-import { CheckCircle2, CreditCard, Loader2, ShieldCheck } from 'lucide-react';
+import { PackageDef, PaymentConfig, User } from '../types';
+import { CheckCircle2, CreditCard, Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
 
 interface PricingProps {
   onPurchase: (pkg: PackageDef) => void;
@@ -8,18 +8,71 @@ interface PricingProps {
   currentPlan?: string;
   packages?: PackageDef[];
   currency?: 'USD' | 'GHS';
+  user?: User;
 }
 
-const Pricing: React.FC<PricingProps> = ({ onPurchase, paymentConfig, currentPlan, packages = [], currency = 'USD' }) => {
+declare const PaystackPop: any;
+
+const Pricing: React.FC<PricingProps> = ({ onPurchase, paymentConfig, currentPlan, packages = [], currency = 'USD', user }) => {
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const currencySymbol = currency === 'GHS' ? '₵' : '$';
 
   const handleBuy = (pkg: PackageDef) => {
+    setError(null);
     setProcessingId(pkg.id);
-    
-    // Simulate API call to Payment Gateway
+
+    // Check if using Paystack and if keys are available
+    if (paymentConfig.activeGateway === 'PAYSTACK') {
+      const publicKey = paymentConfig.keys.paystack.publicKey;
+      
+      if (!publicKey || publicKey.trim() === '') {
+        setError("Paystack Public Key is not configured. Please contact administration.");
+        setProcessingId(null);
+        return;
+      }
+
+      try {
+        const handler = PaystackPop.setup({
+          key: publicKey,
+          email: user?.email || 'customer@example.com',
+          amount: pkg.price * 100, // Paystack expects amount in subunits (kobo/cents)
+          currency: currency === 'GHS' ? 'GHS' : 'USD',
+          ref: `VFV-${Date.now()}-${Math.floor(Math.random() * 1000000)}`,
+          metadata: {
+            custom_fields: [
+              {
+                display_name: "Package Name",
+                variable_name: "package_name",
+                value: pkg.name
+              },
+              {
+                display_name: "Credits",
+                variable_name: "credits",
+                value: String(pkg.credits)
+              }
+            ]
+          },
+          callback: function(response: any) {
+            // Payment successful
+            onPurchase(pkg);
+            setProcessingId(null);
+          },
+          onClose: function() {
+            setProcessingId(null);
+          }
+        });
+        handler.openIframe();
+      } catch (e) {
+        console.error("Paystack Initialization Error", e);
+        setError("Failed to initialize payment gateway. Please check your internet connection.");
+        setProcessingId(null);
+      }
+      return;
+    }
+
+    // Fallback Mock for other gateways not yet fully implemented
     setTimeout(() => {
-      // In a real app, this would redirect to Stripe/Paystack/PayPal or open a modal
       const confirmed = window.confirm(
         `Mock Payment Gateway (${paymentConfig.activeGateway}):\n\n` +
         `Processing payment of ${currencySymbol}${pkg.price} for ${pkg.name} package.\n\n` +
@@ -51,6 +104,13 @@ const Pricing: React.FC<PricingProps> = ({ onPurchase, paymentConfig, currentPla
             <CreditCard className="w-3 h-3" />
             Secure payment via {paymentConfig.activeGateway}
         </div>
+        
+        {error && (
+            <div className="mt-4 max-w-md mx-auto p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg flex items-center gap-2 text-sm">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {error}
+            </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
